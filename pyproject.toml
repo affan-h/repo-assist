@@ -1,0 +1,30 @@
+[project]
+name = "repo-assist"
+version = "0.1.0"
+description = "Ask grounded questions about the httpx and got codebases -- backed by a real structural graph, commit/PR/discussion history, docs, and release notes."
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic-ai",
+    "requests",
+]
+
+[project.scripts]
+repo-assist = "cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = [
+    "cli",
+    "router",
+    "synthesizer",
+    "query_tools",
+    "grader",
+    "fetch_pr",
+    "fetch_issue",
+    "fetch_got_releases",
+    "link_pr_to_discussions",
+    "build_docs_table",
+]
