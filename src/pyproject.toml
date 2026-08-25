@@ -1,0 +1,49 @@
+[project]
+name = "repo-assist"
+version = "0.2.0"
+description = "Ask grounded questions about the httpx and got codebases -- backed by a real structural graph, commit/PR/discussion history, docs, and release notes. v2 adds semantic retrieval and multi-agent orchestration alongside v1's proven rule-based router."
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic-ai",
+    "requests",
+    # v2 additions -- semantic embeddings layer (see embeddings.py's own
+    # docstring for why raw onnxruntime is used instead of
+    # sentence-transformers: a real, confirmed optimum<->transformers
+    # version incompatibility as of Aug 2026 makes the sentence-transformers
+    # ONNX backend path broken for this specific model).
+    "onnxruntime",
+    "huggingface_hub",
+    "transformers",
+    "numpy",
+    "rustworkx",
+]
+
+[project.scripts]
+repo-assist = "cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = [
+    "cli",
+    "router",
+    "synthesizer",
+    "query_tools",
+    "grader",
+    "fetch_pr",
+    "fetch_issue",
+    "fetch_got_releases",
+    "link_pr_to_discussions",
+    "build_docs_table",
+    # v2 additions
+    "orchestrator",
+    "embeddings",
+    "build_embeddings_index",
+    "compute_centrality",
+    "backfill_missing_docs",
+]
+
+[tool.setuptools.packages.find]
+include = ["agents*"]
