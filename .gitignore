@@ -1,6 +1,11 @@
 data/
+*.db
+.env
+venv/
 __pycache__/
 *.pyc
+results*.json
+mini_questions.json
 venv/
 .venv/
 repos/
