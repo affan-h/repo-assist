@@ -10,3 +10,4 @@ venv/
 .venv/
 repos/
 *.egg-info/
+.DS_Store
