@@ -225,6 +225,45 @@ them:
 
 *(New entries go below this line as you find them.)*
 
+- **CLI_README.md's setup instructions are stale.** It lists
+  `GROQ_API_KEY` and `CEREBRAS_API_KEY` as required — both providers are
+  dead (Cerebras now requires payment, Groq's availability was never
+  reconfirmed). Every model string in the codebase now points at Gemini.
+  Actual requirement: `GEMINI_API_KEY` + `GITHUB_TOKEN` only. Fix the
+  docs, don't chase the old env vars.
+- **Same-vendor verification, not cross-vendor.** The original v2 design
+  intended the verifier to use a *different* LLM vendor than the
+  synthesizer, for real independence. Since everything moved to Gemini,
+  the verifier now checks Gemini's output with Gemini. This is a real,
+  disclosed weakness (see `verifier_agent.py`'s docstring) — don't claim
+  true independent verification in interviews; state it as a known
+  limitation of the current provider setup.
+- **Phase 2 requires a local Ollama instance running `qwen2.5-coder:1.5b`**
+  for symbol-relationship summarization. Not mentioned in CLI_README.md.
+  Must be installed and the model pulled before Phase 2 will complete.
+- **KNOWN UNRESOLVED — do not attempt as a quick task:** v2's
+  `why`/`unanswerable_why` regression. The synthesizer's
+  citation-sufficiency rule needs two separate thresholds (strict for
+  catching hallucinated `unanswerable_why` cases, loose for genuine
+  `why` questions with real-but-indirect evidence) but currently shares
+  one rule, and two prior attempts to fix one broke the other. Treat
+  this as a real, scoped diagnosis task on its own — likely needs the
+  retrieval/graph/synthesis/verification failure-type breakdown from
+  ARCHITECTURE.md §7 step 5, not a quick threshold tweak.
+- **`topology`'s weak score is partly a grading artifact, not purely a
+  bug.** Some multi-hop call chains require control-flow-sensitive
+  return-type inference that was deliberately scoped out of Phase 1.
+  The system correctly reports partial/unknown chains rather than
+  guessing, but the benchmark's all-or-nothing grading scores this as a
+  full failure even when the partial trace is correct. Worth knowing
+  before "fixing" this category — some of the gap may be ungradeable
+  with the current strict rubric, not fixable in the pipeline.
+- **Free-tier Gemini quota is real and tight** (roughly 20–500
+  requests/day depending on model). A full `--engine both` grader run
+  can exhaust it mid-run. Use `--retry-failed` to resume without
+  re-spending quota, and `--override-model` to switch models
+  mid-recovery without editing source.
+
 ---
 
 ## 7. Sequencing (for the "days" timeline)
