@@ -11,3 +11,9 @@ venv/
 repos/
 *.egg-info/
 .DS_Store
+
+# Local pipeline artifacts — not source
+repos/
+src/repos
+src/data/
+data/

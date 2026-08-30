@@ -231,13 +231,14 @@ them:
   reconfirmed). Every model string in the codebase now points at Gemini.
   Actual requirement: `GEMINI_API_KEY` + `GITHUB_TOKEN` only. Fix the
   docs, don't chase the old env vars.
-- **Same-vendor verification, not cross-vendor.** The original v2 design
-  intended the verifier to use a *different* LLM vendor than the
-  synthesizer, for real independence. Since everything moved to Gemini,
-  the verifier now checks Gemini's output with Gemini. This is a real,
-  disclosed weakness (see `verifier_agent.py`'s docstring) — don't claim
-  true independent verification in interviews; state it as a known
-  limitation of the current provider setup.
+- **Same-vendor verification, not cross-vendor.** Correction to an
+  earlier note here: `orchestrator.py` DOES force the verifier onto a
+  different model than the synthesizer (a real diversity requirement,
+  implemented). The actual weakness is narrower than "no independence"
+  — both synthesis and verification now run on *Gemini* models (just
+  different ones), not on genuinely different vendors as originally
+  planned pre-Cerebras/Groq collapse. State it that way in interviews:
+  "cross-model but same-vendor verification," not "no independence."
 - **Phase 2 requires a local Ollama instance running `qwen2.5-coder:1.5b`**
   for symbol-relationship summarization. Not mentioned in CLI_README.md.
   Must be installed and the model pulled before Phase 2 will complete.
@@ -263,6 +264,41 @@ them:
   can exhaust it mid-run. Use `--retry-failed` to resume without
   re-spending quota, and `--override-model` to switch models
   mid-recovery without editing source.
+- **README's "Building the database from scratch" section never
+  actually states the `git clone` step for httpx/got.** `build_full_graph.py`
+  hardcodes `repos/httpx` and `repos/got` (relative to `src/`) and
+  assumes they're already cloned there — the README jumps straight from
+  env vars to "Phase 1 parses both repos" with no clone command shown.
+  This is exactly the gap that matters most for the generalization goal:
+  the eventual "any repo" pipeline needs an explicit, automated clone
+  step keyed by `repo_id`/URL, not a manual pre-clone assumption. Treat
+  auto-cloning as part of the Phase 1 generalization task, not a
+  separate afterthought.
+- **v1 (rule-based router, zero LLM in retrieval) is the shipped
+  default and the stronger engine** (41.1% vs v2's 35.7% overall,
+  87.5% vs 37.5% on the safety-critical `unanswerable_why` category).
+  Use `--engine v1` as the baseline for all regression testing unless
+  specifically testing v2. v2 exists and works but hasn't earned
+  default status by the project's own pre-registered gate.
+- **CONFIRMED, IMPORTANT FOR GENERALIZATION: every path in the pipeline
+  is relative to `cwd`, not to the script's own location.**
+  `build_full_graph.py`'s `Path("repos/httpx")` and
+  `save_graph(cg, "data/code_graph.db")`, and `query_tools.py`'s
+  `DB_PATH`, all assume the process is launched with `cwd == src/`.
+  Confirmed by hitting this twice: once for `repos/` (had to symlink
+  `src/repos -> ../repos`), once for `data/` (had to `mkdir src/data`).
+  This is fine for CLI usage but **will break the moment ingestion runs
+  as a FastAPI background task**, where cwd can't be assumed. Before
+  the FastAPI wrapper stage (ARCHITECTURE.md §7 step 6), convert these
+  to explicit paths derived from a config value (e.g.
+  `Path(__file__).parent` or an env-configured data root), not
+  bare relative `Path("repos/...")` / `Path("data/...")` literals. Do
+  this as its own small, explicit task — don't let it get silently
+  bundled into the Phase 1 language-dispatch generalization task.
+- Verified real numbers from a from-scratch Phase 1 run: 864 symbols,
+  406 CALLS edges, 42 INSTANTIATES, 65 EXTENDS — matches README exactly.
+  This run is the checkpoint-phase1-verified baseline for regression
+  comparison going forward.
 
 ---
 
