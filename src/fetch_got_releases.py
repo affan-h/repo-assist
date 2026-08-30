@@ -29,7 +29,7 @@ import time
 import urllib.request
 import urllib.error
 
-DB_PATH = "../data/code_graph.db"  # relative to src/, where this script now lives
+DB_PATH = "data/code_graph.db"  # relative to src/, matches every other script in this pipeline
 REPO = "got"  # matches the `repo` value used elsewhere in your schema
 OWNER_REPO = "sindresorhus/got"  # real GitHub owner/repo slug
 
