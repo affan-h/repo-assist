@@ -299,6 +299,26 @@ them:
   406 CALLS edges, 42 INSTANTIATES, 65 EXTENDS — matches README exactly.
   This run is the checkpoint-phase1-verified baseline for regression
   comparison going forward.
+- **FOUND AND FIXED: `fetch_got_releases.py` had an inconsistent
+  `DB_PATH`.** Every other script uses `"data/code_graph.db"` (relative
+  to `src/`); this one used `"../data/code_graph.db"`, a leftover from
+  before the script was moved into `src/` (its own comment said "where
+  this script now lives" but the path wasn't updated to match). Fixed
+  to match the rest of the pipeline. This is the third relative-path
+  bug hit in a row across three different scripts — reinforces the
+  §"CONFIRMED, IMPORTANT FOR GENERALIZATION" note above: consolidate
+  every scattered `DB_PATH = "..."` literal into one shared config
+  constant. Good, small, low-risk first Antigravity task — purely
+  mechanical, directly fixes a real recurring bug class, and is a safe
+  warm-up before the riskier Phase 1 language-dispatch generalization.
+- Phase 2 progress log (for regression reference): `mine_history.py` —
+  1012 commit-rows (httpx), 1093 (got). Discussions indexed: httpx
+  "Potential Issue" (431), got "Q&A" (141) — categories chosen as the
+  closest analog to `why`-type ground truth per repo, since category
+  names differ between the two repos' GitHub Discussion setups. Releases:
+  got, 164 fetched via REST (httpx has no separate release-fetch step —
+  presumably covered by build_docs_table.py or PR/changelog data instead,
+  confirm this before assuming httpx needs an equivalent script).
 
 ---
 
