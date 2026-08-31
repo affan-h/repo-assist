@@ -94,7 +94,11 @@ def compute_risk(conn: sqlite3.Connection, repo: str):
 def main():
     conn = init_risk_table(DB_PATH)
 
-    for repo in ["httpx", "got"]:
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT repo FROM churn_scores UNION SELECT DISTINCT repo FROM complexity_scores")
+    repos = [row[0] for row in cur.fetchall()]
+
+    for repo in repos:
         print("=" * 70)
         print(f"RISK SCORES: {repo}")
         print("=" * 70)

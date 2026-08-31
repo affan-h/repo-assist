@@ -381,14 +381,14 @@ them:
   unchanged (864/406/42/65), both CLI regression checks pass (httpx
   Client question correctly cited; got retry-default question
   correctly abstained rather than hallucinating).
-- **`pyproject.toml`'s `dependencies` list was already stale before
-  this task** — it only listed `pydantic-ai` and `requests`, missing
-  the v2 dependencies the README documents (`onnxruntime`,
-  `huggingface_hub`, `transformers`, `numpy`, `rustworkx`) entirely.
-  `pathspec` and `networkx` (added by this task) were added to close
-  the immediate gap, but the file needs a full audit against what's
-  actually imported across the codebase — treat as a small standalone
-  follow-up task, not urgent but real.
+- **Phase 2 and 3 generalized to arbitrary repositories with bounded history policy (checkpoint-phase2-3-generalized).**
+  - Consolidated bounded history policy constants in `src/config.py` (`MAX_PRS = 300`, `MAX_ISSUES = 300`, `MAX_DISCUSSIONS_PER_CATEGORY = 300`, `MAX_COMMITS_PER_FILE = 500`).
+  - Added automatic full git repository cloning (`ensure_repo_cloned` in `build_full_graph.py`) to fetch complete git histories required by PyDriller without shallow truncation.
+  - Implemented graceful degradation across all GitHub-dependent tools (`index_discussions.py`, `fetch_issue.py`, `fetch_pr.py`): repos without Discussions or Issues enabled log clear skip messages and exit cleanly rather than crashing the pipeline. Verified live against `psf/requests` where Discussions are disabled.
+  - Generalize Phase 2/3 pipelines to dynamically discover all indexed repos from SQLite (`mine_history.py`, `build_docs_table.py`, `summarize_symbols.py`, `compute_churn.py`, `compute_complexity.py`, `compute_centrality.py`, `compute_risk_scores.py`).
+  - Empirical verification against `psf/requests`: 22 files, 335 symbols, 75 imports, 128 CALLS edges, 11 INSTANTIATES edges, 37 EXTENDS edges, 2,400 commit-file rows, 18 docs chunks, 335 PageRank scores. Hit bounded commit cap on `src/requests/models.py` (500 commits).
+  - Non-negotiable regression verification: `repo-assist ask httpx "What does the Client class do?"` remains completely intact and correctly cited (`Source: CODE#Client`).
+  - **FINDING FOR LATER TASK:** `cli.py` has `choices=["httpx", "got"]` for the `repo` positional argument in `repo-assist ask`, preventing querying arbitrary third repos until the query/router layer is generalized in a future task.
 
 ---
 

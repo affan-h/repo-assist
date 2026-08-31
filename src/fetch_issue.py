@@ -49,7 +49,7 @@ import sqlite3
 import json
 import time
 
-from config import DB_PATH
+from config import DB_PATH, MAX_ISSUES
 import requests
 
 
@@ -130,26 +130,38 @@ def fetch_issue_from_github(owner: str, repo: str, issue_number: int, token: str
     }
 
     response = requests.post(GITHUB_GRAPHQL_URL, json=payload, headers=headers, timeout=30)
-    response.raise_for_status()
+    if response.status_code != 200:
+        print(f"  GitHub API returned status {response.status_code} for {owner}/{repo} issue #{issue_number}. Skipping.")
+        return None
+
     data = response.json()
 
     if "errors" in data:
-        raise RuntimeError(f"GraphQL errors: {data['errors']}")
+        print(f"  Issues not enabled or accessible for {owner}/{repo}: {data['errors']}. Skipping.")
+        return None
 
-    issue_data = data["data"]["repository"]["issue"]
-    rate_limit = data["data"]["rateLimit"]
+    repo_data = data.get("data", {}).get("repository")
+    if repo_data is None:
+        print(f"  Repository {owner}/{repo} not found or inaccessible. Skipping.")
+        return None
+
+    issue_data = repo_data.get("issue")
+    rate_limit = data.get("data", {}).get("rateLimit")
 
     if issue_data is None:
-        raise ValueError(f"Issue #{issue_number} not found in {owner}/{repo} "
-                          f"(wrong number, or it's a PR not a standalone issue)")
+        print(f"  Issue #{issue_number} not found in {owner}/{repo} (wrong number or Issues disabled).")
+        return None
 
-    print(f"  Rate limit: {rate_limit['remaining']}/{rate_limit['limit']} "
-          f"remaining, resets at {rate_limit['resetAt']}")
+    if rate_limit:
+        print(f"  Rate limit: {rate_limit['remaining']}/{rate_limit['limit']} "
+              f"remaining, resets at {rate_limit['resetAt']}")
 
     return issue_data
 
 
 def save_issue_to_cache(db_path: str, repo: str, issue_data: dict):
+    if not issue_data:
+        return
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute(
@@ -174,7 +186,7 @@ def save_issue_to_cache(db_path: str, repo: str, issue_data: dict):
     conn.close()
 
 
-def get_issue(owner: str, repo: str, issue_number: int, db_path: str = DB_PATH) -> dict:
+def get_issue(owner: str, repo: str, issue_number: int, db_path: str = DB_PATH) -> dict | None:
     """Main entry point -- same lazy fetch-on-miss pattern as fetch_pr.py's get_pr()."""
     init_issue_cache_table(db_path)
 
@@ -193,9 +205,10 @@ def get_issue(owner: str, repo: str, issue_number: int, db_path: str = DB_PATH) 
 
     print(f"  Cache miss: fetching Issue #{issue_number} from GitHub live...")
     issue_data = fetch_issue_from_github(owner, repo, issue_number, token)
-    save_issue_to_cache(db_path, repo, issue_data)
-
-    return get_cached_issue(db_path, repo, issue_number)
+    if issue_data is not None:
+        save_issue_to_cache(db_path, repo, issue_data)
+        return get_cached_issue(db_path, repo, issue_number)
+    return None
 
 
 def main():

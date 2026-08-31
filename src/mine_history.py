@@ -25,9 +25,7 @@ Run with:
 """
 
 import sqlite3
-from pathlib import Path
-
-from config import DB_PATH
+from config import DB_PATH, MAX_COMMITS_PER_FILE
 from pydriller import Repository
 
 
@@ -72,10 +70,14 @@ def get_indexed_files(db_path: str, repo: str) -> list[str]:
 
 def mine_file_history(repo_path: str, repo_name: str, file_path: str, conn: sqlite3.Connection):
     """Mine commit history for ONE file, insert rows into the commits table."""
+    from pathlib import Path
     cur = conn.cursor()
     count = 0
 
     for commit in Repository(repo_path, filepath=file_path).traverse_commits():
+        if MAX_COMMITS_PER_FILE is not None and count >= MAX_COMMITS_PER_FILE:
+            break
+
         if commit.merge:
             # Merge commits show 0 modified_files by default (confirmed
             # via real PyDriller output) -- we still record that this
@@ -112,17 +114,22 @@ def mine_file_history(repo_path: str, repo_name: str, file_path: str, conn: sqli
 
 
 def main():
+    from pathlib import Path
     init_commits_table(DB_PATH)
-
-    repos = {
-        "httpx": "repos/httpx",
-        "got": "repos/got",
-    }
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
+    cur = conn.cursor()
 
-    for repo_name, repo_path in repos.items():
+    cur.execute("SELECT DISTINCT repo FROM files")
+    repos = [r[0] for r in cur.fetchall()]
+
+    for repo_name in repos:
+        repo_path = f"repos/{repo_name}"
+        if not Path(repo_path).exists():
+            print(f"Repo path {repo_path} does not exist, skipping commit mining.")
+            continue
+
         files = get_indexed_files(DB_PATH, repo_name)
         print(f"Mining history for {repo_name}: {len(files)} indexed files...")
 

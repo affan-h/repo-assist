@@ -45,7 +45,7 @@ import sqlite3
 import json
 import time
 
-from config import DB_PATH
+from config import DB_PATH, MAX_PRS
 import requests
 
 

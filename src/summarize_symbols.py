@@ -323,7 +323,7 @@ def summarize_one(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None, help="Only summarize the first N symbols (for testing)")
-    parser.add_argument("--repo", type=str, default=None, choices=["httpx", "got"], help="Only summarize this repo")
+    parser.add_argument("--repo", type=str, default=None, help="Only summarize this repo")
     args = parser.parse_args()
 
     conn = init_summaries_table(DB_PATH)
@@ -331,7 +331,6 @@ def main():
     symbols = get_symbols_to_summarize(conn, args.repo, args.limit)
     print(f"Found {len(symbols)} symbol(s) to process.\n")
 
-    repo_roots = {"httpx": "repos/httpx", "got": "repos/got"}
     known_names_cache: dict[str, set[str]] = {}
 
     done = 0
@@ -346,7 +345,8 @@ def main():
         if repo not in known_names_cache:
             known_names_cache[repo] = get_all_known_symbol_names(conn, repo)
 
-        source_code = get_source_snippet(repo_roots[repo], file_path, start_line, end_line)
+        repo_root = f"repos/{repo}"
+        source_code = get_source_snippet(repo_root, file_path, start_line, end_line)
         called, instantiated = get_callees(conn, repo, qualified_name)
         result = summarize_one(name, kind, parent_class, source_code, called, instantiated)
 

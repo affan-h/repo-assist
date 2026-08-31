@@ -24,6 +24,7 @@ Run with:
     python3 src/build_full_graph.py
 """
 
+import subprocess
 from pathlib import Path
 import sys
 
@@ -37,18 +38,57 @@ from resolve_inheritance import resolve_inheritance_for_file, InheritanceStats
 from extract_symbols import find_source_files
 
 
+def ensure_repo_cloned(repo_spec: str, repos_dir: Path = Path("repos")) -> tuple[str, Path]:
+    """
+    Ensures a repository is cloned locally.
+    Supports full URLs (https://github.com/psf/requests.git), 'owner/repo' (psf/requests), or local folder names.
+    Performs full git clone (no shallow depth) so PyDriller history mining works completely.
+    """
+    repos_dir.mkdir(parents=True, exist_ok=True)
+    if repo_spec.startswith("http://") or repo_spec.startswith("https://") or repo_spec.startswith("git@"):
+        clone_url = repo_spec
+        name = repo_spec.rstrip("/").split("/")[-1].removesuffix(".git")
+    elif "/" in repo_spec:
+        name = repo_spec.split("/")[-1]
+        clone_url = f"https://github.com/{repo_spec}.git"
+    else:
+        name = repo_spec
+        clone_url = f"https://github.com/{repo_spec}.git"
+
+    dest = repos_dir / name
+    if not dest.exists():
+        print(f"Cloning {clone_url} into {dest} (full history)...")
+        subprocess.run(["git", "clone", clone_url, str(dest)], check=True)
+    return name, dest
+
+
+def discover_repos(args: list[str] | None = None, repos_dir: Path = Path("repos")) -> list[tuple[str, Path]]:
+    if args:
+        return [ensure_repo_cloned(arg, repos_dir) for arg in args]
+
+    # Deterministic default order for baseline repos, followed by any additional local repos
+    known = [("httpx", repos_dir / "httpx"), ("got", repos_dir / "got")]
+    repos = [(name, path) for name, path in known if path.exists()]
+    seen = {name for name, _ in repos}
+
+    if repos_dir.exists():
+        for d in sorted(repos_dir.iterdir()):
+            if d.is_dir() and not d.name.startswith(".") and d.name not in seen:
+                repos.append((d.name, d))
+
+    return repos
+
+
 def main():
-    repos = [
-        ("httpx", Path("repos/httpx")),
-        ("got", Path("repos/got")),
-    ]
+    repos = discover_repos(sys.argv[1:] if len(sys.argv) > 1 else None)
 
     print("=" * 70)
     print("PHASE 1 (complete): building the full graph in one pipeline")
     print("=" * 70)
 
+    repos_dict = {name: root for name, root in repos}
     print("\n[1/5] Files, symbols, imports...")
-    cg = build_graph_with_imports()
+    cg = build_graph_with_imports(repos=repos_dict)
 
     print("\n[2/5] Base CALLS/INSTANTIATES (self./this. direct calls)...")
     for repo_name, repo_root in repos:

@@ -42,7 +42,7 @@ import json
 import time
 import requests
 
-from config import DB_PATH
+from config import DB_PATH, MAX_DISCUSSIONS_PER_CATEGORY
 
 
 GITHUB_GRAPHQL_URL = "https://api.github.com/graphql"
@@ -138,12 +138,23 @@ def init_discussions_index_table(db_path: str):
 def get_categories(owner: str, repo: str, token: str) -> list[dict]:
     headers = {"Authorization": f"Bearer {token}"}
     payload = {"query": CATEGORIES_QUERY, "variables": {"owner": owner, "repo": repo}}
-    response = requests.post(GITHUB_GRAPHQL_URL, json=payload, headers=headers, timeout=30)
-    response.raise_for_status()
-    data = response.json()
-    if "errors" in data:
-        raise RuntimeError(f"GraphQL errors: {data['errors']}")
-    return data["data"]["repository"]["discussionCategories"]["nodes"]
+    try:
+        response = requests.post(GITHUB_GRAPHQL_URL, json=payload, headers=headers, timeout=30)
+        if response.status_code != 200:
+            print(f"Discussions not enabled for {owner}/{repo}, skipping (status {response.status_code}).")
+            return []
+        data = response.json()
+        if "errors" in data:
+            print(f"Discussions not enabled for {owner}/{repo}, skipping.")
+            return []
+        repo_data = data.get("data", {}).get("repository")
+        if not repo_data or not repo_data.get("discussionCategories"):
+            print(f"Discussions not enabled for {owner}/{repo}, skipping.")
+            return []
+        return repo_data["discussionCategories"].get("nodes", [])
+    except Exception as e:
+        print(f"Discussions not enabled for {owner}/{repo}, skipping ({e}).")
+        return []
 
 
 def index_all_discussions_in_category(
@@ -151,11 +162,8 @@ def index_all_discussions_in_category(
     token: str, db_path: str,
 ):
     """
-    Paginates through EVERY discussion in the given category, storing
-    each one fully -- including comments and their replies -- regardless
-    of whether GitHub marked an official answer. This is a bulk,
-    upfront index, not a per-query lazy fetch, since we already learned
-    that per-query keyword search misses real results.
+    Paginates through discussions in the given category up to MAX_DISCUSSIONS_PER_CATEGORY,
+    storing each one fully -- including comments and their replies.
     """
     headers = {"Authorization": f"Bearer {token}"}
     conn = sqlite3.connect(db_path)
@@ -169,17 +177,27 @@ def index_all_discussions_in_category(
             "query": DISCUSSIONS_IN_CATEGORY_QUERY,
             "variables": {"owner": owner, "repo": repo, "categoryId": category_id, "after": after_cursor},
         }
-        response = requests.post(GITHUB_GRAPHQL_URL, json=payload, headers=headers, timeout=30)
-        response.raise_for_status()
-        data = response.json()
+        try:
+            response = requests.post(GITHUB_GRAPHQL_URL, json=payload, headers=headers, timeout=30)
+            if response.status_code != 200:
+                print(f"  Failed to fetch discussions in {category_name} (status {response.status_code}). Stopping.")
+                break
+            data = response.json()
+            if "errors" in data:
+                print(f"  GraphQL error while fetching discussions in {category_name}: {data['errors']}. Stopping.")
+                break
+        except Exception as e:
+            print(f"  Network error while fetching discussions: {e}. Stopping.")
+            break
 
-        if "errors" in data:
-            raise RuntimeError(f"GraphQL errors: {data['errors']}")
+        repo_data = data.get("data", {}).get("repository")
+        if not repo_data or not repo_data.get("discussions"):
+            break
 
-        discussions_conn = data["data"]["repository"]["discussions"]
-        rate_limit = data["data"]["rateLimit"]
+        discussions_conn = repo_data["discussions"]
+        rate_limit = data.get("data", {}).get("rateLimit", {"remaining": "?", "limit": "?"})
 
-        for disc in discussions_conn["nodes"]:
+        for disc in discussions_conn.get("nodes", []):
             answer = disc.get("answer")
             cur.execute(
                 """INSERT OR REPLACE INTO discussions_index
@@ -198,13 +216,15 @@ def index_all_discussions_in_category(
                 ),
             )
             total_indexed += 1
+            if MAX_DISCUSSIONS_PER_CATEGORY and total_indexed >= MAX_DISCUSSIONS_PER_CATEGORY:
+                break
 
         conn.commit()
 
-        print(f"  [{total_indexed}/{discussions_conn['totalCount']}] indexed so far "
-              f"(rate limit: {rate_limit['remaining']}/{rate_limit['limit']})")
+        print(f"  [{total_indexed}/{discussions_conn.get('totalCount', total_indexed)}] indexed so far "
+              f"(rate limit: {rate_limit.get('remaining')}/{rate_limit.get('limit')})")
 
-        if not discussions_conn["pageInfo"]["hasNextPage"]:
+        if (MAX_DISCUSSIONS_PER_CATEGORY and total_indexed >= MAX_DISCUSSIONS_PER_CATEGORY) or not discussions_conn.get("pageInfo", {}).get("hasNextPage"):
             break
         after_cursor = discussions_conn["pageInfo"]["endCursor"]
 
@@ -224,12 +244,17 @@ def main():
 
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
-        raise RuntimeError("GITHUB_TOKEN environment variable not set.")
+        print("GITHUB_TOKEN environment variable not set. Skipping discussions indexing.")
+        return
 
     init_discussions_index_table(DB_PATH)
 
     print(f"Fetching discussion categories for {owner}/{repo}...")
     categories = get_categories(owner, repo, token)
+
+    if not categories:
+        print(f"Discussions not enabled for {owner}/{repo}, skipping.")
+        return
 
     print(f"\nAvailable categories:")
     for cat in categories:

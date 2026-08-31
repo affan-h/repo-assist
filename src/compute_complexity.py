@@ -64,16 +64,16 @@ def init_complexity_table(db_path: str):
     return conn
 
 
-def compute_for_repo(conn: sqlite3.Connection, repo: str, repo_root: str, language: str):
+from extract_symbols import tsx_parser
+
+
+def compute_for_repo(conn: sqlite3.Connection, repo: str, repo_root: str):
     cur = conn.cursor()
     cur.execute("""
         SELECT file_path, qualified_name, start_line, end_line, kind
         FROM symbols WHERE repo = ?
     """, (repo,))
     symbols = cur.fetchall()
-
-    parser = py_parser if language == "python" else ts_parser
-    branch_nodes = PY_BRANCH_NODES if language == "python" else TS_BRANCH_NODES
 
     import time
     now = str(time.time())
@@ -89,6 +89,16 @@ def compute_for_repo(conn: sqlite3.Connection, repo: str, repo_root: str, langua
         lines = source_code.split(b"\n")
         snippet = b"\n".join(lines[start_line - 1:end_line])
         line_count = end_line - start_line + 1
+
+        if full_path.suffix == ".py":
+            parser = py_parser
+            branch_nodes = PY_BRANCH_NODES
+        elif full_path.suffix == ".tsx":
+            parser = tsx_parser
+            branch_nodes = TS_BRANCH_NODES
+        else:
+            parser = ts_parser
+            branch_nodes = TS_BRANCH_NODES
 
         try:
             tree = parser.parse(snippet)
@@ -111,12 +121,17 @@ def compute_for_repo(conn: sqlite3.Connection, repo: str, repo_root: str, langua
 def main():
     conn = init_complexity_table(DB_PATH)
 
-    for repo, repo_root, language in [("httpx", "repos/httpx", "python"), ("got", "repos/got", "typescript")]:
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT repo FROM symbols")
+    repos = [r[0] for r in cur.fetchall()]
+
+    for repo in repos:
+        repo_root = f"repos/{repo}"
         print("=" * 70)
         print(f"COMPLEXITY SCORES: {repo}")
         print("=" * 70)
 
-        results = compute_for_repo(conn, repo, repo_root, language)
+        results = compute_for_repo(conn, repo, repo_root)
         if not results:
             print(f"  No symbols found for {repo}.")
             continue

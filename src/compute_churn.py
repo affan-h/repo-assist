@@ -62,7 +62,11 @@ def main():
     import time
     now = str(time.time())
 
-    for repo in ["httpx", "got"]:
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT repo FROM commits UNION SELECT DISTINCT repo FROM files")
+    repos = [row[0] for row in cur.fetchall()]
+
+    for repo in repos:
         print("=" * 70)
         print(f"CHURN SCORES: {repo}")
         print("=" * 70)

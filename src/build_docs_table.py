@@ -29,6 +29,7 @@ fetch_got_releases.py placeholder below), same pattern as pr_cache. Do not
 assume this table covers them.
 """
 
+from pathlib import Path
 import re
 import sqlite3
 
@@ -38,32 +39,52 @@ from config import DB_PATH
 # httpx convention (confirmed via symbols table): paths prefixed "httpx/..."
 # got convention (confirmed via risk_scores table): paths unprefixed, e.g. "source/core/index.ts"
 SOURCES = [
-    ("httpx", "../repos/httpx/README.md", "httpx/README.md", 2),
-    ("httpx", "../repos/httpx/CHANGELOG.md", "httpx/CHANGELOG.md", 2),   # exception: ## = release, see docstring
-    ("got", "../repos/got/readme.md", "readme.md", 3),
-    ("got", "../repos/got/documentation/1-promise.md", "documentation/1-promise.md", 3),
-    ("got", "../repos/got/documentation/2-options.md", "documentation/2-options.md", 3),
-    ("got", "../repos/got/documentation/3-streams.md", "documentation/3-streams.md", 3),
-    ("got", "../repos/got/documentation/4-pagination.md", "documentation/4-pagination.md", 3),
-    ("got", "../repos/got/documentation/5-https.md", "documentation/5-https.md", 3),
-    ("got", "../repos/got/documentation/6-timeout.md", "documentation/6-timeout.md", 3),
-    ("got", "../repos/got/documentation/7-retry.md", "documentation/7-retry.md", 3),
-    ("got", "../repos/got/documentation/8-errors.md", "documentation/8-errors.md", 3),
-    ("got", "../repos/got/documentation/9-hooks.md", "documentation/9-hooks.md", 3),
-    ("got", "../repos/got/documentation/10-instances.md", "documentation/10-instances.md", 3),
-    ("got", "../repos/got/documentation/async-stack-traces.md", "documentation/async-stack-traces.md", 3),
-    ("got", "../repos/got/documentation/cache.md", "documentation/cache.md", 3),
-    ("got", "../repos/got/documentation/diagnostics-channel.md", "documentation/diagnostics-channel.md", 3),
-    ("got", "../repos/got/documentation/lets-make-a-plugin.md", "documentation/lets-make-a-plugin.md", 3),
-    ("got", "../repos/got/documentation/quick-start.md", "documentation/quick-start.md", 2),
-    ("got", "../repos/got/documentation/tips.md", "documentation/tips.md", 3),
-    ("got", "../repos/got/documentation/typescript.md", "documentation/typescript.md", 3),
-    ("got", "../repos/got/documentation/migration-guides/axios.md", "documentation/migration-guides/axios.md", 3),
-    ("got", "../repos/got/documentation/migration-guides/nodejs.md", "documentation/migration-guides/nodejs.md", 3),
-    ("got", "../repos/got/documentation/migration-guides/request.md", "documentation/migration-guides/request.md", 3),
+    ("httpx", "repos/httpx/README.md", "httpx/README.md", 2),
+    ("httpx", "repos/httpx/CHANGELOG.md", "httpx/CHANGELOG.md", 2),   # exception: ## = release, see docstring
+    ("got", "repos/got/readme.md", "readme.md", 3),
+    ("got", "repos/got/documentation/1-promise.md", "documentation/1-promise.md", 3),
+    ("got", "repos/got/documentation/2-options.md", "documentation/2-options.md", 3),
+    ("got", "repos/got/documentation/3-streams.md", "documentation/3-streams.md", 3),
+    ("got", "repos/got/documentation/4-pagination.md", "documentation/4-pagination.md", 3),
+    ("got", "repos/got/documentation/5-https.md", "documentation/5-https.md", 3),
+    ("got", "repos/got/documentation/6-timeout.md", "documentation/6-timeout.md", 3),
+    ("got", "repos/got/documentation/7-retry.md", "documentation/7-retry.md", 3),
+    ("got", "repos/got/documentation/8-errors.md", "documentation/8-errors.md", 3),
+    ("got", "repos/got/documentation/9-hooks.md", "documentation/9-hooks.md", 3),
+    ("got", "repos/got/documentation/10-instances.md", "documentation/10-instances.md", 3),
+    ("got", "repos/got/documentation/async-stack-traces.md", "documentation/async-stack-traces.md", 3),
+    ("got", "repos/got/documentation/cache.md", "documentation/cache.md", 3),
+    ("got", "repos/got/documentation/diagnostics-channel.md", "documentation/diagnostics-channel.md", 3),
+    ("got", "repos/got/documentation/lets-make-a-plugin.md", "documentation/lets-make-a-plugin.md", 3),
+    ("got", "repos/got/documentation/quick-start.md", "documentation/quick-start.md", 2),
+    ("got", "repos/got/documentation/tips.md", "documentation/tips.md", 3),
+    ("got", "repos/got/documentation/typescript.md", "documentation/typescript.md", 3),
+    ("got", "repos/got/documentation/migration-guides/axios.md", "documentation/migration-guides/axios.md", 3),
+    ("got", "repos/got/documentation/migration-guides/nodejs.md", "documentation/migration-guides/nodejs.md", 3),
+    ("got", "repos/got/documentation/migration-guides/request.md", "documentation/migration-guides/request.md", 3),
 ]
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
+
+
+def discover_repo_docs(repo_name: str, repo_root: Path) -> list[tuple[str, Path, str, int]]:
+    docs = []
+    # Standard top-level markdown/rst docs
+    for name in ["README.md", "readme.md", "CHANGELOG.md", "HISTORY.md", "HISTORY.rst", "CONTRIBUTING.md"]:
+        p = repo_root / name
+        if p.exists():
+            docs.append((repo_name, p, name, 2))
+    # Subdirectory docs/
+    for doc_dir_name in ["docs", "documentation"]:
+        doc_dir = repo_root / doc_dir_name
+        if doc_dir.exists():
+            for p in sorted(doc_dir.rglob("*.md")):
+                rel = str(p.relative_to(repo_root))
+                docs.append((repo_name, p, rel, 3))
+            for p in sorted(doc_dir.rglob("*.rst")):
+                rel = str(p.relative_to(repo_root))
+                docs.append((repo_name, p, rel, 3))
+    return docs
 
 
 def chunk_file(text: str, boundary_level: int) -> list[tuple[str, str]]:
@@ -114,10 +135,22 @@ def build():
     """)
     conn.execute("DELETE FROM docs")  # idempotent full rebuild, matches project's init_*_table pattern
 
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT repo FROM files")
+    indexed_repos = {row[0] for row in cur.fetchall()}
+
     total = 0
+    handled_repos = set()
+
     for repo, disk_path, stored_path, level in SOURCES:
+        path_obj = Path(disk_path)
+        if not path_obj.exists():
+            path_obj = Path("../" + disk_path)
+        if not path_obj.exists():
+            print(f"MISSING (skipped, real gap logged): {disk_path}")
+            continue
         try:
-            text = open(disk_path, encoding="utf-8", errors="replace").read()
+            text = path_obj.read_text(encoding="utf-8", errors="replace")
         except FileNotFoundError:
             print(f"MISSING (skipped, real gap logged): {disk_path}")
             continue
@@ -128,7 +161,29 @@ def build():
                 (repo, stored_path, heading, i, content),
             )
         total += len(chunks)
+        handled_repos.add(repo)
         print(f"{stored_path}: {len(chunks)} chunks")
+
+    # Discover and index docs for any additional repos
+    repos_dir = Path("repos")
+    if not repos_dir.exists():
+        repos_dir = Path("../repos")
+
+    for repo_name in sorted(indexed_repos - handled_repos):
+        repo_root = repos_dir / repo_name
+        if not repo_root.exists():
+            continue
+        discovered = discover_repo_docs(repo_name, repo_root)
+        for r_name, p, stored_rel, level in discovered:
+            text = p.read_text(encoding="utf-8", errors="replace")
+            chunks = chunk_file(text, level)
+            for i, (heading, content) in enumerate(chunks):
+                conn.execute(
+                    "INSERT INTO docs (repo, file_path, heading, chunk_index, content) VALUES (?, ?, ?, ?, ?)",
+                    (r_name, stored_rel, heading, i, content),
+                )
+            total += len(chunks)
+            print(f"{stored_rel} ({r_name}): {len(chunks)} chunks")
 
     conn.commit()
     print(f"\nTotal chunks indexed: {total}")
