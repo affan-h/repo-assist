@@ -21,9 +21,9 @@ Real fixes vs. the previous draft:
 import sqlite3
 from datetime import datetime, timezone
 
+from config import DB_PATH
 from embeddings import compute_embedding, get_embedding_model, MODEL_NAME
 
-DB_PATH = "../data/code_graph.db"
 CHUNK_SIZE = 400
 CHUNK_OVERLAP = 50
 

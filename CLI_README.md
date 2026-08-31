@@ -4,20 +4,20 @@ Ask real, grounded questions about the `httpx` and `got` codebases from your ter
 
 ## Setup
 
-1. From the `repo-assist/src/` directory (where `pyproject.toml` lives):
+1. From the `repo-assist/` root directory (where `pyproject.toml` lives):
    ```bash
    pip install -e .
    ```
    This installs the `repo-assist` command into your current Python environment (works inside your existing venv).
 
-2. Make sure your environment variables are set (same ones used throughout this project):
+2. Make sure your environment variables are set:
    ```bash
-   export GROQ_API_KEY="..."
-   export CEREBRAS_API_KEY="..."
+   export GEMINI_API_KEY="..."
    export GITHUB_TOKEN="..."
    ```
+   (Note: synthesis, verification, and evaluation use Gemini models via `GEMINI_API_KEY`).
 
-3. Run `repo-assist` from **`repo-assist/src/`** specifically -- the tool reads `data/code_graph.db` via a path relative to this directory (`../data/code_graph.db`), same as every other script in this project. Running it from elsewhere will fail to find the database.
+3. Run `repo-assist` from **`repo-assist/src/`** specifically -- the database path is canonically defined in `src/config.py` as `DB_PATH = "data/code_graph.db"` (relative to `src/`), which is the shared single source of truth used by all phase scripts and the CLI. Running it from outside `src/` will fail to resolve the relative database path.
 
 ## Usage
 

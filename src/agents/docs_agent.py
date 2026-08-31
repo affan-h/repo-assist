@@ -24,10 +24,9 @@ specific number chosen.
 """
 
 import sqlite3
+from config import DB_PATH
 import query_tools as tools
 from embeddings import search_semantic
-
-DB_PATH = tools.DB_PATH  # single source of truth for the db path, not a second hardcoded constant
 
 # Real cap, not a guess: real doc chunks run up to ~400 words per
 # build_embeddings_index.py's own CHUNK_SIZE, which is roughly 2000-2800

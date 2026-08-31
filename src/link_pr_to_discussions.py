@@ -43,6 +43,8 @@ Run with:
 import re
 import sys
 import sqlite3
+
+from config import DB_PATH
 import math
 import json
 from collections import Counter
@@ -267,7 +269,7 @@ def main():
 
     repo, pr_number = sys.argv[1], int(sys.argv[2])
 
-    conn = sqlite3.connect("data/code_graph.db")
+    conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute("SELECT title, body FROM pr_cache WHERE repo = ? AND pr_number = ?", (repo, pr_number))
     row = cur.fetchone()

@@ -22,6 +22,8 @@ Run with:
 
 import sqlite3
 from pathlib import Path
+
+from config import DB_PATH
 from tree_sitter import Language, Parser
 import tree_sitter_python as tspython
 import tree_sitter_typescript as tsts
@@ -107,8 +109,7 @@ def compute_for_repo(conn: sqlite3.Connection, repo: str, repo_root: str, langua
 
 
 def main():
-    db_path = "data/code_graph.db"
-    conn = init_complexity_table(db_path)
+    conn = init_complexity_table(DB_PATH)
 
     for repo, repo_root, language in [("httpx", "repos/httpx", "python"), ("got", "repos/got", "typescript")]:
         print("=" * 70)

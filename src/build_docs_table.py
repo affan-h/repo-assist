@@ -32,7 +32,7 @@ assume this table covers them.
 import re
 import sqlite3
 
-DB_PATH = "data/code_graph.db"  # relative to src/, matches every other script in this pipeline
+from config import DB_PATH
 
 # (repo, disk_path_for_reading, stored_file_path_matching_repo_convention, chunk-boundary_level)
 # httpx convention (confirmed via symbols table): paths prefixed "httpx/..."

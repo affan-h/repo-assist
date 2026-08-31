@@ -19,6 +19,8 @@ Run with:
 
 import sqlite3
 
+from config import DB_PATH
+
 
 def init_risk_table(db_path: str):
     conn = sqlite3.connect(db_path)
@@ -90,7 +92,7 @@ def compute_risk(conn: sqlite3.Connection, repo: str):
 
 
 def main():
-    conn = init_risk_table("data/code_graph.db")
+    conn = init_risk_table(DB_PATH)
 
     for repo in ["httpx", "got"]:
         print("=" * 70)

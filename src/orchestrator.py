@@ -54,10 +54,9 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
+from config import DB_PATH
 import synthesizer
 from agents import structural_agent, history_agent, docs_agent, verifier_agent
-
-DB_PATH = "../data/code_graph.db"
 
 # Real fix, Aug 2026: Cerebras now requires payment (402 payment_required
 # on gpt-oss-120b) and the Groq fallback path isn't confirmed working

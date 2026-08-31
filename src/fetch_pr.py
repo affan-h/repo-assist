@@ -44,6 +44,8 @@ import sys
 import sqlite3
 import json
 import time
+
+from config import DB_PATH
 import requests
 
 
@@ -195,7 +197,7 @@ def save_pr_to_cache(db_path: str, repo: str, pr_data: dict):
     conn.close()
 
 
-def get_pr(owner: str, repo: str, pr_number: int, db_path: str = "data/code_graph.db") -> dict:
+def get_pr(owner: str, repo: str, pr_number: int, db_path: str = DB_PATH) -> dict:
     """
     The main entry point -- this is what a future verifier agent will call.
     Checks cache first, only hits the live API on a miss.

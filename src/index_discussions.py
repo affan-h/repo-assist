@@ -42,6 +42,8 @@ import json
 import time
 import requests
 
+from config import DB_PATH
+
 
 GITHUB_GRAPHQL_URL = "https://api.github.com/graphql"
 
@@ -224,8 +226,7 @@ def main():
     if not token:
         raise RuntimeError("GITHUB_TOKEN environment variable not set.")
 
-    db_path = "data/code_graph.db"
-    init_discussions_index_table(db_path)
+    init_discussions_index_table(DB_PATH)
 
     print(f"Fetching discussion categories for {owner}/{repo}...")
     categories = get_categories(owner, repo, token)
@@ -249,9 +250,9 @@ def main():
     category = matching[0]
     print(f"\nIndexing all discussions in category '{category['name']}'...")
     total = index_all_discussions_in_category(
-        owner, repo, category["id"], category["name"], token, db_path
+        owner, repo, category["id"], category["name"], token, DB_PATH
     )
-    print(f"\nDone. Indexed {total} discussions from '{category['name']}' into {db_path}.")
+    print(f"\nDone. Indexed {total} discussions from '{category['name']}' into {DB_PATH}.")
 
 
 if __name__ == "__main__":

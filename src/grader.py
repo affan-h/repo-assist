@@ -54,8 +54,7 @@ from datetime import datetime, timezone
 from typing import Optional
 import requests
 from orchestrator import run_query as run_v2_query
-
-DB_PATH = "../data/code_graph.db"
+from config import DB_PATH
 
 # ── Judge configuration ──────────────────────────────────────────────────────
 JUDGE_PROVIDER = "gemini"          # "gemini" | "groq"

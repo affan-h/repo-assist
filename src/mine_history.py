@@ -26,6 +26,8 @@ Run with:
 
 import sqlite3
 from pathlib import Path
+
+from config import DB_PATH
 from pydriller import Repository
 
 
@@ -110,19 +112,18 @@ def mine_file_history(repo_path: str, repo_name: str, file_path: str, conn: sqli
 
 
 def main():
-    db_path = "data/code_graph.db"
-    init_commits_table(db_path)
+    init_commits_table(DB_PATH)
 
     repos = {
         "httpx": "repos/httpx",
         "got": "repos/got",
     }
 
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
 
     for repo_name, repo_path in repos.items():
-        files = get_indexed_files(db_path, repo_name)
+        files = get_indexed_files(DB_PATH, repo_name)
         print(f"Mining history for {repo_name}: {len(files)} indexed files...")
 
         total_commits_recorded = 0
@@ -136,7 +137,7 @@ def main():
         print(f"  {repo_name}: {total_commits_recorded} total commit-file rows recorded\n")
 
     conn.close()
-    print("Done. Mined history stored in data/code_graph.db's 'commits' table.")
+    print(f"Done. Mined history stored in {DB_PATH}'s 'commits' table.")
 
 
 if __name__ == "__main__":

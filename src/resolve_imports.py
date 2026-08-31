@@ -34,6 +34,7 @@ import tree_sitter_typescript as tsts
 
 import sys
 sys.path.insert(0, "src")
+from config import DB_PATH
 from graph_schema import CodeGraph, save_graph
 from extract_symbols import walk_repo, extract_python_symbols, extract_typescript_symbols, should_skip_dir
 
@@ -312,8 +313,8 @@ def main():
     else:
         print("  NOT FOUND -- resolution logic needs further debugging.")
 
-    save_graph(cg, "data/code_graph.db")
-    print(f"\nGraph persisted to data/code_graph.db")
+    save_graph(cg, DB_PATH)
+    print(f"\nGraph persisted to {DB_PATH}")
 
 
 if __name__ == "__main__":

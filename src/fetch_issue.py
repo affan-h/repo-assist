@@ -48,6 +48,8 @@ import sys
 import sqlite3
 import json
 import time
+
+from config import DB_PATH
 import requests
 
 
@@ -172,7 +174,7 @@ def save_issue_to_cache(db_path: str, repo: str, issue_data: dict):
     conn.close()
 
 
-def get_issue(owner: str, repo: str, issue_number: int, db_path: str = "../data/code_graph.db") -> dict:
+def get_issue(owner: str, repo: str, issue_number: int, db_path: str = DB_PATH) -> dict:
     """Main entry point -- same lazy fetch-on-miss pattern as fetch_pr.py's get_pr()."""
     init_issue_cache_table(db_path)
 

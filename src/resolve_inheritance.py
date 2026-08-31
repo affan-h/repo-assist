@@ -36,6 +36,7 @@ import tree_sitter_typescript as tsts
 
 import sys
 sys.path.insert(0, "src")
+from config import DB_PATH
 from graph_schema import CodeGraph, save_graph
 from resolve_imports import build_graph_with_imports
 from extract_symbols import should_skip_dir
@@ -239,8 +240,8 @@ def main():
     extends_edges = sum(1 for e in cg.graph.edges() if e == "EXTENDS")
     print(f"\nTotal EXTENDS edges in graph: {extends_edges}")
 
-    save_graph(cg, "data/code_graph.db")
-    print("Graph persisted to data/code_graph.db")
+    save_graph(cg, DB_PATH)
+    print(f"Graph persisted to {DB_PATH}")
     print("(files, symbols, imports, and CALLS/INSTANTIATES/EXTENDS edges")
     print(" are all now included in the persisted database.)")
 

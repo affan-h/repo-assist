@@ -46,6 +46,8 @@ import sys
 import time
 import sqlite3
 import argparse
+
+from config import DB_PATH
 # NOTE: `ollama` is deliberately NOT imported at module level. It's imported
 # inside summarize_one() instead, so that the schema/symbol-fetching/
 # snippet-extraction/prompt-building logic in this file can be tested
@@ -324,8 +326,7 @@ def main():
     parser.add_argument("--repo", type=str, default=None, choices=["httpx", "got"], help="Only summarize this repo")
     args = parser.parse_args()
 
-    db_path = "data/code_graph.db"
-    conn = init_summaries_table(db_path)
+    conn = init_summaries_table(DB_PATH)
 
     symbols = get_symbols_to_summarize(conn, args.repo, args.limit)
     print(f"Found {len(symbols)} symbol(s) to process.\n")

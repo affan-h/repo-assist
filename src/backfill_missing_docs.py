@@ -42,7 +42,7 @@ from datetime import datetime, timezone
 
 import requests
 
-DB_PATH = "../data/code_graph.db"
+from config import DB_PATH
 CHUNK_SIZE = 400
 CHUNK_OVERLAP = 50
 

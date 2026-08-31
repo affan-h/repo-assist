@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 
 import rustworkx as rx
 
-DB_PATH = "../data/code_graph.db"
+from config import DB_PATH
 
 
 def _init_table(conn):

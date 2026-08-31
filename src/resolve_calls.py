@@ -36,6 +36,7 @@ import tree_sitter_typescript as tsts
 
 import sys
 sys.path.insert(0, "src")
+from config import DB_PATH
 from graph_schema import CodeGraph, SymbolNode, save_graph
 from resolve_imports import build_graph_with_imports
 
@@ -427,8 +428,8 @@ def main():
     print("(Compare instantiates_edges against the pre-fix count to confirm "
           "the module-level gap -- e.g. httpx's Limits class -- is now captured.)")
 
-    save_graph(cg, "data/code_graph.db")
-    print("Graph persisted to data/code_graph.db")
+    save_graph(cg, DB_PATH)
+    print(f"Graph persisted to {DB_PATH}")
     print("(CALLS and INSTANTIATES edges are included in the persisted database.)")
 
 

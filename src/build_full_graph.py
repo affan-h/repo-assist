@@ -28,6 +28,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, "src")
 
+from config import DB_PATH
 from graph_schema import save_graph
 from resolve_imports import build_graph_with_imports
 from resolve_calls import resolve_python_calls, resolve_typescript_calls, CallResolutionStats
@@ -108,8 +109,8 @@ def main():
     print(f"  INSTANTIATES edges: {instantiates}")
     print(f"  EXTENDS edges: {extends}")
 
-    save_graph(cg, "data/code_graph.db")
-    print("\nGraph persisted to data/code_graph.db (ONE combined save, all edge types included)")
+    save_graph(cg, DB_PATH)
+    print(f"\nGraph persisted to {DB_PATH} (ONE combined save, all edge types included)")
 
 
 if __name__ == "__main__":

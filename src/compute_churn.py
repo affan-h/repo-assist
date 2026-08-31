@@ -23,6 +23,8 @@ Run with:
 
 import sqlite3
 
+from config import DB_PATH
+
 
 def compute_churn_per_file(conn: sqlite3.Connection, repo: str) -> list[tuple[str, int]]:
     """Returns [(file_path, distinct_commit_count), ...] sorted by
@@ -55,8 +57,7 @@ def init_churn_table(db_path: str):
 
 
 def main():
-    db_path = "data/code_graph.db"
-    conn = init_churn_table(db_path)
+    conn = init_churn_table(DB_PATH)
 
     import time
     now = str(time.time())

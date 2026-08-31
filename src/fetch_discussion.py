@@ -38,6 +38,8 @@ import sys
 import sqlite3
 import json
 import time
+
+from config import DB_PATH
 import requests
 
 
@@ -220,7 +222,7 @@ def _translate_cache_rows(cached: list[dict] | None) -> list[dict]:
 
 
 def search_discussions(
-    owner: str, repo: str, keywords: str, db_path: str = "data/code_graph.db", max_results: int = 15
+    owner: str, repo: str, keywords: str, db_path: str = DB_PATH, max_results: int = 15
 ) -> list[dict]:
     """
     Main entry point. Checks cache first (keyed by exact search string),
