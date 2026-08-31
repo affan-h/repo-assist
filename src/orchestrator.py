@@ -89,8 +89,7 @@ class OrchestrationPlan(BaseModel):
 
 
 PLANNER_INSTRUCTIONS = (
-    "You are the planning agent for a codebase-intelligence system covering two repos "
-    "(httpx, a Python HTTP client; got, a TypeScript HTTP client).\n"
+    "You are the planning agent for a codebase-intelligence system covering ingested repositories.\n"
     "Given a user's question, decide which specialist agents should run:\n"
     "  - 'structural': the question is about WHAT code does, WHERE it lives, or the "
     "call/topology structure (e.g. 'what does X do', 'where is Y defined', 'what calls Z').\n"

@@ -102,10 +102,28 @@ def ask_v2(repo: str, question: str, verbose: bool = False) -> int:
     return 0
 
 
+import sqlite3
+from config import DB_PATH
+
+
+def get_ingested_repos(db_path: str = DB_PATH) -> list[str]:
+    """Return list of distinct ingested repositories found in the database."""
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT repo FROM files ORDER BY repo")
+        rows = cur.fetchall()
+        conn.close()
+        return [r[0] for r in rows]
+    except Exception:
+        return []
+
+
 def ask(repo: str, question: str, category: str | None = None, verbose: bool = False, engine: str = "v1") -> int:
-    if repo not in ("httpx", "got"):
-        print(f"Error: repo must be 'httpx' or 'got' (this tool is currently scoped to these two "
-              f"pinned repos -- see project_context.md for why). Got: {repo!r}", file=sys.stderr)
+    ingested = get_ingested_repos()
+    if repo not in ingested:
+        repos_str = ", ".join(ingested) if ingested else "none"
+        print(f"Error: repo {repo!r} not found -- ingested repos are: {repos_str}", file=sys.stderr)
         return 1
 
     if engine == "v2":
@@ -118,13 +136,13 @@ def ask(repo: str, question: str, category: str | None = None, verbose: bool = F
 def main():
     parser = argparse.ArgumentParser(
         prog="repo-assist",
-        description="Ask real questions about the httpx or got codebases, grounded in a real "
+        description="Ask real questions about ingested codebases, grounded in a real "
                      "structural graph, commit/PR/discussion history, docs, and release notes.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    ask_parser = subparsers.add_parser("ask", help="Ask a question about a repo")
-    ask_parser.add_argument("repo", choices=["httpx", "got"], help="Which repo to ask about")
+    ask_parser = subparsers.add_parser("ask", help="Ask a question about an ingested repo")
+    ask_parser.add_argument("repo", help="Which repo to ask about (must be ingested)")
     ask_parser.add_argument("question", help="Your question, in plain English "
                              "(quote code identifiers in backticks, e.g. `Client.get`)")
     ask_parser.add_argument("--category", choices=["what", "how", "where", "why", "unanswerable_why", "topology"],

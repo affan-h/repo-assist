@@ -387,8 +387,18 @@ them:
   - Implemented graceful degradation across all GitHub-dependent tools (`index_discussions.py`, `fetch_issue.py`, `fetch_pr.py`): repos without Discussions or Issues enabled log clear skip messages and exit cleanly rather than crashing the pipeline. Verified live against `psf/requests` where Discussions are disabled.
   - Generalize Phase 2/3 pipelines to dynamically discover all indexed repos from SQLite (`mine_history.py`, `build_docs_table.py`, `summarize_symbols.py`, `compute_churn.py`, `compute_complexity.py`, `compute_centrality.py`, `compute_risk_scores.py`).
   - Empirical verification against `psf/requests`: 22 files, 335 symbols, 75 imports, 128 CALLS edges, 11 INSTANTIATES edges, 37 EXTENDS edges, 2,400 commit-file rows, 18 docs chunks, 335 PageRank scores. Hit bounded commit cap on `src/requests/models.py` (500 commits).
-  - Non-negotiable regression verification: `repo-assist ask httpx "What does the Client class do?"` remains completely intact and correctly cited (`Source: CODE#Client`).
-  - **FINDING FOR LATER TASK:** `cli.py` has `choices=["httpx", "got"]` for the `repo` positional argument in `repo-assist ask`, preventing querying arbitrary third repos until the query/router layer is generalized in a future task.
+  - **FINDING RESOLVED IN NEXT TASK:** `cli.py` has `choices=["httpx", "got"]` for the `repo` positional argument in `repo-assist ask`, preventing querying arbitrary third repos until the query/router layer is generalized in a future task.
+- **Query / CLI layer generalized to arbitrary repositories (checkpoint-query-cli-generalized).**
+  - `src/cli.py`: Removed hardcoded `choices=["httpx", "got"]`. Replaced with `get_ingested_repos()` dynamically querying `SELECT DISTINCT repo FROM files`. Non-ingested repo queries return clean, actionable error: `Error: repo 'foo' not found -- ingested repos are: got, httpx, requests`.
+  - `src/router.py`: Generalized `search_source_code(repo, query)` from hardcoded per-repo subpaths to dynamic root resolution `repos/<repo>` with standard directory denial filters (`.git`, `node_modules`, `.venv`, `__pycache__`, `tests`).
+  - `src/query_tools.py`: Generalized `get_source_snippet()` to resolve `repos/<repo>/<file_path>` for any repo layout. Added `resolve_github_owner_repo()` to infer GitHub `(owner, repo)` dynamically from the git remote origin for live PR/issue fallback. Audited all SQL queries to ensure 100% airtight `repo = ?` filtering and repo isolation.
+  - `src/orchestrator.py`: Generalize `PLANNER_INSTRUCTIONS` prompt from two-repo mention to ingested repositories.
+  - **All 5 Verifications Passed:**
+    1. `repo-assist ask httpx "What does the Client class do?"` -> Correctly answered with `Source: CODE#Client`.
+    2. `repo-assist ask got "Why does got default to 2 retries?"` -> Honest abstention without hallucination.
+    3. `repo-assist ask requests "What does the Session class do?"` -> Correctly answered with `Source: CODE#Session`.
+    4. `repo-assist ask requests "What does the Client class do?"` (Cross-contamination test) -> Correctly abstained, zero bleeding from `httpx` (`requests` has no `Client` class).
+    5. `repo-assist ask nonexistent-repo "test"` -> Helpful error message without stack trace.
 
 ---
 

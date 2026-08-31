@@ -155,13 +155,36 @@ def get_commit_history(repo: str, file_path: str, limit: Optional[int] = None) -
         return _rows(cur)
 
 
-# Maps internal repo string -> real GitHub (owner, repo) slug, needed only
-# for the live-fetch fallback in get_pr() below. Every other query_tools
-# function keys purely on the internal `repo` string and never needed this.
+# Maps internal repo string -> real GitHub (owner, repo) slug, with dynamic
+# fallback resolving from the git remote URL in repos/<repo>/.git/config.
 GITHUB_OWNER_REPO = {
     "httpx": ("encode", "httpx"),
     "got": ("sindresorhus", "got"),
 }
+
+
+def resolve_github_owner_repo(repo: str) -> Optional[tuple[str, str]]:
+    if repo in GITHUB_OWNER_REPO:
+        return GITHUB_OWNER_REPO[repo]
+    for base in [os.path.join("..", "repos", repo), os.path.join("repos", repo)]:
+        git_dir = os.path.join(base, ".git")
+        if os.path.isdir(git_dir):
+            try:
+                import subprocess
+                res = subprocess.run(
+                    ["git", "-C", base, "remote", "get-url", "origin"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if res.returncode == 0:
+                    url = res.stdout.strip()
+                    m = re.search(r"github\.com[:/]([^/]+)/([^/\.]+)", url)
+                    if m:
+                        slug = (m.group(1), m.group(2))
+                        GITHUB_OWNER_REPO[repo] = slug
+                        return slug
+            except Exception:
+                pass
+    return None
 
 
 def get_pr(repo: str, pr_number: int, allow_live_fetch: bool = True) -> Optional[dict]:
@@ -194,9 +217,10 @@ def get_pr(repo: str, pr_number: int, allow_live_fetch: bool = True) -> Optional
     if row is None:
         if not allow_live_fetch:
             return None
-        if repo not in GITHUB_OWNER_REPO:
+        slug = resolve_github_owner_repo(repo)
+        if slug is None:
             return None  # no known real GitHub slug for this repo -- can't fetch live
-        owner, gh_repo = GITHUB_OWNER_REPO[repo]
+        owner, gh_repo = slug
         try:
             from fetch_pr import get_pr as live_get_pr
             live_get_pr(owner, gh_repo, pr_number, db_path=DB_PATH)
@@ -243,9 +267,10 @@ def get_issue(repo: str, issue_number: int, allow_live_fetch: bool = True) -> Op
     if row is None:
         if not allow_live_fetch:
             return None
-        if repo not in GITHUB_OWNER_REPO:
+        slug = resolve_github_owner_repo(repo)
+        if slug is None:
             return None
-        owner, gh_repo = GITHUB_OWNER_REPO[repo]
+        owner, gh_repo = slug
         try:
             from fetch_issue import get_issue as live_get_issue
             live_get_issue(owner, gh_repo, issue_number, db_path=DB_PATH)
@@ -393,24 +418,17 @@ def get_source_snippet(repo: str, file_path: str, start_line: int, end_line: int
     at ../repos/httpx/... and ../repos/got/... respectively -- so the real
     disk path needs repo-specific handling, not a single naive join.
     """
-    if repo == "httpx":
-        # CONFIRMED REAL BUG, FIXED: repos/httpx/ is the checkout ROOT
-        # (contains README.md, pyproject.toml, etc.), and stored file_path
-        # already includes the package's OWN "httpx/" prefix (e.g.
-        # "httpx/_config.py" -- confirmed via direct `find` showing the real
-        # file lives at repos/httpx/httpx/_config.py, two httpx/ levels, not
-        # one). The original code collapsed these into one level and
-        # silently returned None for every real httpx symbol.
-        disk_path = os.path.join("..", "repos", "httpx", file_path)
-    elif repo == "got":
-        # got's stored file_path has NO repo-name prefix (e.g.
-        # "source/core/index.ts"), so repos/got/ + file_path is correct
-        # as-is -- confirmed separately, no bug here.
-        disk_path = os.path.join("..", "repos", "got", file_path)
-    else:
-        return None  # unknown repo, no known checkout convention
+    candidates = [
+        os.path.join("..", "repos", repo, file_path),
+        os.path.join("repos", repo, file_path),
+    ]
+    disk_path = None
+    for c in candidates:
+        if os.path.isfile(c):
+            disk_path = c
+            break
 
-    if not os.path.isfile(disk_path):
+    if not disk_path:
         return None
 
     with open(disk_path, encoding="utf-8", errors="replace") as f:

@@ -93,20 +93,25 @@ def search_source_code(repo: str, query: str, limit: int = 3) -> list[dict]:
     if not query_terms:
         return []
 
-    if repo == "httpx":
-        root = os.path.join("..", "repos", "httpx", "httpx")
-    elif repo == "got":
-        root = os.path.join("..", "repos", "got", "source")
-    else:
+    candidates = [
+        os.path.join("..", "repos", repo),
+        os.path.join("repos", repo),
+    ]
+    root = None
+    for c in candidates:
+        if os.path.isdir(c):
+            root = c
+            break
+
+    if not root:
         return []
 
-    if not os.path.isdir(root):
-        return []
-
+    skip_dirs = {"node_modules", ".git", ".venv", "venv", "__pycache__", "tests", "test", "dist", "build", ".pytest_cache", ".mypy_cache"}
     scored_files = []
-    for dirpath, _, filenames in os.walk(root):
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in skip_dirs and not d.startswith(".")]
         for fname in filenames:
-            if not (fname.endswith(".py") or fname.endswith(".ts")):
+            if not (fname.endswith(".py") or fname.endswith(".ts") or fname.endswith(".tsx") or fname.endswith(".js") or fname.endswith(".jsx")):
                 continue
             fpath = os.path.join(dirpath, fname)
             try:
