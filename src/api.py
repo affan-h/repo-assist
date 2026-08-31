@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Optional, List
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from config import DB_PATH, REPOS_DIR
@@ -52,6 +53,14 @@ app = FastAPI(
     version="0.1.0",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # ---------------------------------------------------------------------------
 # Database & State Helper
@@ -59,7 +68,8 @@ app = FastAPI(
 
 def update_repo_status(repo_id: str, status_val: str, error_message: Optional[str] = None, url: Optional[str] = None):
     now = datetime.now(timezone.utc).isoformat()
-    with sqlite3.connect(DB_PATH) as conn:
+    with sqlite3.connect(DB_PATH, timeout=30.0) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
         if url:
             conn.execute(
                 """INSERT INTO repos (repo_id, url, status, status_updated_at, error_message)
@@ -80,7 +90,8 @@ def update_repo_status(repo_id: str, status_val: str, error_message: Optional[st
 
 
 def get_repo_record(repo_id: str) -> Optional[dict]:
-    with sqlite3.connect(DB_PATH) as conn:
+    with sqlite3.connect(DB_PATH, timeout=30.0) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.row_factory = sqlite3.Row
         cur = conn.execute("SELECT * FROM repos WHERE repo_id = ?", (repo_id,))
         row = cur.fetchone()
@@ -137,13 +148,17 @@ def run_ingestion_pipeline(repo_id: str, url: str):
 
         # 4. GRAPH_BUILT -> HISTORY_ATTACHED (Phase 2: Commits, docs, discussions)
         print(f"[Ingest Worker: {repo_id}] Stage 4: Mining commit history and documentation...")
-        with sqlite3.connect(DB_PATH) as conn:
-            init_commits_table(DB_PATH)
-            files = get_indexed_files(DB_PATH, repo_id)
-            for f in files:
+        init_commits_table(DB_PATH)
+        files = get_indexed_files(DB_PATH, repo_id)
+        for f in files:
+            with sqlite3.connect(DB_PATH, timeout=30.0) as conn:
+                conn.execute("PRAGMA journal_mode=WAL")
                 mine_file_history(str(repo_root), repo_id, f, conn)
+                conn.commit()
 
-            discovered_docs = discover_repo_docs(repo_id, repo_root)
+        discovered_docs = discover_repo_docs(repo_id, repo_root)
+        with sqlite3.connect(DB_PATH, timeout=30.0) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             for r_name, p, stored_rel, level in discovered_docs:
                 try:
                     text = p.read_text(encoding="utf-8", errors="replace")
@@ -174,7 +189,8 @@ def run_ingestion_pipeline(repo_id: str, url: str):
 
         # 5. HISTORY_ATTACHED -> RISK_SCORED (Phase 3: Churn, complexity, centrality, risk)
         print(f"[Ingest Worker: {repo_id}] Stage 5: Computing risk metrics...")
-        with sqlite3.connect(DB_PATH) as conn:
+        with sqlite3.connect(DB_PATH, timeout=30.0) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
             init_churn_table(DB_PATH)
             compute_churn_for_repo(conn, repo_id)
 
