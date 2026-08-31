@@ -32,7 +32,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Optional
 
-DB_PATH = "../data/code_graph.db"  # relative to src/, where this module lives
+DB_PATH = "data/code_graph.db"  # relative to src/, matches every other script in this pipeline
 
 
 def _connect() -> sqlite3.Connection:
