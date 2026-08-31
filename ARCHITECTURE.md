@@ -363,6 +363,19 @@ them:
   (`Source: CODE#Client`) against the single canonical DB. This is the
   `checkpoint-full-pipeline-verified` baseline — the true regression
   reference point for everything from here forward.
+- **RESOLVED: Consolidated all database path literals into `src/config.py`.**
+  Eliminated all independently hardcoded `"data/code_graph.db"` and
+  `"../data/code_graph.db"` literals across all phase scripts, agents, and
+  tools (`build_full_graph.py`, `mine_history.py`, `fetch_pr.py`,
+  `fetch_issue.py`, `fetch_discussion.py`, `fetch_got_releases.py`,
+  `build_docs_table.py`, `backfill_missing_docs.py`,
+  `build_embeddings_index.py`, `compute_churn.py`, `compute_complexity.py`,
+  `compute_risk_scores.py`, `compute_centrality.py`, `resolve_calls.py`,
+  `resolve_imports.py`, `resolve_inheritance.py`, `summarize_symbols.py`,
+  `index_discussions.py`, `link_pr_to_discussions.py`, `query_tools.py`,
+  `orchestrator.py`, `grader.py`, `docs_agent.py`). All consumers now import
+  `DB_PATH = "data/code_graph.db"` from `config.py` as the single source
+  of truth, permanently preventing stale duplicate path bugs.
 
 ---
 
