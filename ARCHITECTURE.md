@@ -319,6 +319,50 @@ them:
   got, 164 fetched via REST (httpx has no separate release-fetch step —
   presumably covered by build_docs_table.py or PR/changelog data instead,
   confirm this before assuming httpx needs an equivalent script).
+- **THE DB_PATH SAGA — READ THIS BEFORE TOUCHING ANY PATH CONSTANT.**
+  Five separate scripts each hardcode where `code_graph.db` lives,
+  and they didn't agree:
+  - `build_full_graph.py`, `mine_history.py`, `fetch_pr.py`,
+    `summarize_symbols.py` → all use `"data/code_graph.db"`
+    (i.e., `src/data/code_graph.db` when run from `src/`, which is how
+    every phase script is meant to be run).
+  - `fetch_got_releases.py`, `build_docs_table.py` originally had
+    `"../data/code_graph.db"` (i.e. `repo-assist/data/`) — these were
+    genuine bugs (leftover from before the scripts were moved into
+    `src/`, per their own comments) and were correctly fixed to
+    `"data/code_graph.db"` to match the majority.
+  - `query_tools.py` (used by the actual `repo-assist` CLI/`cli.py`)
+    ALSO originally had `"../data/code_graph.db"`. This one was
+    initially assumed to be the same bug and nearly "fixed" backwards
+    — but real evidence (a manual `cp` of the DB to the repo root
+    happened to make the CLI work, which looked like confirmation of
+    the wrong theory) caused genuine confusion for several exchanges
+    before checking actual `SELECT COUNT(*) FROM summaries` row counts
+    against both file locations settled it: `src/data/code_graph.db`
+    was the live, growing file (fed by `summarize_symbols.py`,
+    confirmed still running and incrementing), and the `../data/`
+    copy was a frozen, stale duplicate from the manual `cp`. Fixed
+    `query_tools.py` to `"data/code_graph.db"`, deleted the stale
+    duplicate. **Lesson: when two files disagree, check actual content
+    (row counts, checksums) — never infer which one is "real" from
+    file timestamps or from "it happened to work when I did X."**
+  - **Net result: `src/data/code_graph.db` is now the single canonical
+    DB location, and all five scripts agree on `"data/code_graph.db"`
+    relative to `src/`.** CLI_README.md's own text is now slightly
+    stale (it describes the OLD `../data/code_graph.db` convention) —
+    fix that doc as a trivial follow-up.
+  - This whole saga is the strongest possible evidence for
+    consolidating every `DB_PATH` literal into one shared constant
+    (imported from a single `config.py` or similar) rather than
+    six independently-typed string literals. Make this genuinely the
+    first Antigravity task — it's small, mechanical, and every hour
+    spent NOT doing this risks this exact multi-hour debugging saga
+    recurring on a new repo's DB path during generalization.
+- Verified: after all fixes, `repo-assist ask httpx "What does the
+  Client class do?"` returns a real, correctly-cited answer
+  (`Source: CODE#Client`) against the single canonical DB. This is the
+  `checkpoint-full-pipeline-verified` baseline — the true regression
+  reference point for everything from here forward.
 
 ---
 
