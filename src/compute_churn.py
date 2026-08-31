@@ -56,6 +56,21 @@ def init_churn_table(db_path: str):
     return conn
 
 
+def compute_for_repo(conn: sqlite3.Connection, repo: str, now: str | None = None) -> list[tuple[str, int]]:
+    import time
+    if now is None:
+        now = str(time.time())
+    churn_data = compute_churn_per_file(conn, repo)
+    cur = conn.cursor()
+    for file_path, count in churn_data:
+        cur.execute(
+            "INSERT OR REPLACE INTO churn_scores (repo, file_path, commit_count, computed_at) VALUES (?, ?, ?, ?)",
+            (repo, file_path, count, now),
+        )
+    conn.commit()
+    return churn_data
+
+
 def main():
     conn = init_churn_table(DB_PATH)
 

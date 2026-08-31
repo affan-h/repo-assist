@@ -13,7 +13,7 @@ import networkx as nx
 from config import DB_PATH
 
 
-def compute_pagerank(db_path: str = DB_PATH) -> dict[str, int]:
+def compute_pagerank(db_path: str = DB_PATH, repo: str | None = None) -> dict[str, int]:
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
 
@@ -25,8 +25,11 @@ def compute_pagerank(db_path: str = DB_PATH) -> dict[str, int]:
         pass
 
     # Fetch distinct repos
-    cur.execute("SELECT DISTINCT repo FROM symbols")
-    repos = [row[0] for row in cur.fetchall()]
+    if repo:
+        repos = [repo]
+    else:
+        cur.execute("SELECT DISTINCT repo FROM symbols")
+        repos = [row[0] for row in cur.fetchall()]
 
     counts_by_repo = {}
 

@@ -1,15 +1,17 @@
-"""
-Global configuration constants for repo-assist.
-
-Single source of truth for filesystem paths and shared pipeline settings.
-All paths are relative to `src/` (the assumed working directory for all
-pipeline phase scripts and CLI invocations).
-"""
-
+import os
 from pathlib import Path
 
-# Canonical path to the SQLite code graph database relative to src/
-DB_PATH = "data/code_graph.db"
+# Base directory paths anchored to the location of this configuration file
+SRC_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SRC_DIR.parent
+DATA_DIR = SRC_DIR / "data"
+REPOS_DIR = PROJECT_ROOT / "repos"
+
+# Ensure data directory exists
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+# Canonical absolute path string to the SQLite code graph database
+DB_PATH = str(DATA_DIR / "code_graph.db")
 
 # Bounded history fetching policy (scope guards against unbounded API calls/mining)
 MAX_PRS = 300

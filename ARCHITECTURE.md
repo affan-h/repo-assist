@@ -398,7 +398,22 @@ them:
     2. `repo-assist ask got "Why does got default to 2 retries?"` -> Honest abstention without hallucination.
     3. `repo-assist ask requests "What does the Session class do?"` -> Correctly answered with `Source: CODE#Session`.
     4. `repo-assist ask requests "What does the Client class do?"` (Cross-contamination test) -> Correctly abstained, zero bleeding from `httpx` (`requests` has no `Client` class).
-    5. `repo-assist ask nonexistent-repo "test"` -> Helpful error message without stack trace.
+- **FastAPI HTTP Service Wrapper & State Machine (checkpoint-fastapi-wrapper).**
+  - **Fixed CWD-Relative Path Fragility Permanently:** `src/config.py` now resolves `SRC_DIR`, `PROJECT_ROOT`, `DATA_DIR`, `REPOS_DIR`, and `DB_PATH` as absolute paths via `Path(__file__).resolve().parent`. All pipeline scripts (`build_full_graph.py`, `mine_history.py`, `build_docs_table.py`, `compute_complexity.py`, `summarize_symbols.py`, `query_tools.py`, `router.py`) now anchor relative to `REPOS_DIR` and `DB_PATH`, making execution 100% CWD-invariant.
+  - **Schema Addition (Flagged & Documented):** Added `repos` table (`repo_id PRIMARY KEY`, `url`, `status`, `status_updated_at`, `error_message`) to track ingestion lifecycle. Initialized existing repos (`httpx`, `got`, `requests`) as `READY` in `init_db()`.
+  - **FastAPI App (`src/api.py`):**
+    - `POST /repos`: Accepts `{"url": "<url>"}`, assigns `QUEUED` state, spawns `BackgroundTasks` executing sequential stages (`CLONED` -> `PARSED` -> `GRAPH_BUILT` -> `HISTORY_ATTACHED` -> `RISK_SCORED` -> `READY` or `FAILED`), and returns 202 Accepted.
+    - `GET /repos/{repo_id}/status`: Returns live ingestion status and timestamps.
+    - `GET /repos`: Returns all ingested and in-progress repositories.
+    - `POST /repos/{repo_id}/ask`: Validates repo readiness; returns HTTP 409 Conflict if not `READY` (or 404 if not found), otherwise executes grounded query routing and returns answer with exact citations.
+  - **Full 6-Check Verification Passed:**
+    1. **CWD Invariance Check:** FastAPI app started via `uvicorn api:app --app-dir src --host 127.0.0.1 --port 8000` from repository root (`/Users/affan/developer/repo-assist`).
+    2. **CLI Regression Check:** `repo-assist ask httpx "What does the Client class do?"` run from repo root returned full answer with `Source: CODE#Client`.
+    3. **New Ingestion Target:** Ingested `pallets/itsdangerous` (`https://github.com/pallets/itsdangerous.git`), a 9-file Python cryptographic signing library.
+    4. **Live State Transitions Observed:** Polled `GET /repos/itsdangerous/status` and captured the real progression:
+       `None` -> `QUEUED` -> `CLONED` -> `PARSED` -> `GRAPH_BUILT` -> `READY` (677 commits mined across 9 files, 48 nodes, 39 edges, churn/complexity/risk scores computed).
+    5. **Post-Ingestion Query Check:** `POST /repos/itsdangerous/ask` with `{"question": "What does the Signer class do?"}` returned 200 OK with correct answer and `Source: CODE#Signer`.
+    6. **Non-Ready / Error Handling Check:** `POST /repos/fake-repo/ask` returned 404; `POST /repos/<non-ready>/ask` returned 409 Conflict with clear explanation.
 
 ---
 

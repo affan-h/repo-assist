@@ -25,7 +25,7 @@ Run with:
 """
 
 import sqlite3
-from config import DB_PATH, MAX_COMMITS_PER_FILE
+from config import DB_PATH, REPOS_DIR, MAX_COMMITS_PER_FILE
 from pydriller import Repository
 
 
@@ -125,11 +125,12 @@ def main():
     repos = [r[0] for r in cur.fetchall()]
 
     for repo_name in repos:
-        repo_path = f"repos/{repo_name}"
-        if not Path(repo_path).exists():
-            print(f"Repo path {repo_path} does not exist, skipping commit mining.")
+        repo_dir = REPOS_DIR / repo_name
+        if not repo_dir.exists():
+            print(f"Repo path {repo_dir} does not exist, skipping commit mining.")
             continue
 
+        repo_path = str(repo_dir)
         files = get_indexed_files(DB_PATH, repo_name)
         print(f"Mining history for {repo_name}: {len(files)} indexed files...")
 

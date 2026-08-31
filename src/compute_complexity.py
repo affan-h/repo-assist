@@ -23,7 +23,7 @@ Run with:
 import sqlite3
 from pathlib import Path
 
-from config import DB_PATH
+from config import DB_PATH, REPOS_DIR
 from tree_sitter import Language, Parser
 import tree_sitter_python as tspython
 import tree_sitter_typescript as tsts
@@ -126,7 +126,7 @@ def main():
     repos = [r[0] for r in cur.fetchall()]
 
     for repo in repos:
-        repo_root = f"repos/{repo}"
+        repo_root = str(REPOS_DIR / repo)
         print("=" * 70)
         print(f"COMPLEXITY SCORES: {repo}")
         print("=" * 70)

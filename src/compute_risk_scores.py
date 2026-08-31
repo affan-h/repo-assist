@@ -91,6 +91,20 @@ def compute_risk(conn: sqlite3.Connection, repo: str):
     return sorted(results, key=lambda r: -r[3])
 
 
+def compute_risk_scores(db_path: str = DB_PATH, repo: str | None = None):
+    conn = init_risk_table(db_path)
+    cur = conn.cursor()
+    if repo:
+        repos = [repo]
+    else:
+        cur.execute("SELECT DISTINCT repo FROM churn_scores UNION SELECT DISTINCT repo FROM complexity_scores")
+        repos = [row[0] for row in cur.fetchall()]
+
+    for r in repos:
+        compute_risk(conn, r)
+    conn.close()
+
+
 def main():
     conn = init_risk_table(DB_PATH)
 

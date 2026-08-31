@@ -267,6 +267,14 @@ CREATE TABLE IF NOT EXISTS symbol_edges (
                  to_file, to_qualified_name, to_start_line)
 );
 
+CREATE TABLE IF NOT EXISTS repos (
+    repo_id TEXT PRIMARY KEY,
+    url TEXT,
+    status TEXT NOT NULL,
+    status_updated_at TEXT NOT NULL,
+    error_message TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_symbols_file ON symbols(repo, file_path);
 CREATE INDEX IF NOT EXISTS idx_imports_to ON imports(repo, to_file);
 CREATE INDEX IF NOT EXISTS idx_symbol_edges_from ON symbol_edges(repo, from_file, from_qualified_name, from_start_line);
@@ -280,6 +288,18 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.executescript(SCHEMA_SQL)
+    conn.commit()
+
+    # Seed baseline/existing ingested repos into the repos table if not present
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT repo FROM files")
+    for (r,) in cur.fetchall():
+        cur.execute(
+            "INSERT OR IGNORE INTO repos (repo_id, url, status, status_updated_at, error_message) VALUES (?, ?, ?, ?, ?)",
+            (r, f"https://github.com/{r}/{r}", "READY", now, None),
+        )
     conn.commit()
     return conn
 

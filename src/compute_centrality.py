@@ -45,12 +45,15 @@ def _init_table(conn):
     conn.commit()
 
 
-def compute_all_centrality():
-    with sqlite3.connect(DB_PATH) as conn:
+def compute_centrality(db_path: str = DB_PATH, repo: str | None = None):
+    with sqlite3.connect(db_path) as conn:
         _init_table(conn)
         cursor = conn.cursor()
 
-        repos = [r[0] for r in cursor.execute("SELECT DISTINCT repo FROM symbol_edges").fetchall()]
+        if repo:
+            repos = [repo]
+        else:
+            repos = [r[0] for r in cursor.execute("SELECT DISTINCT repo FROM symbol_edges").fetchall()]
 
         for repo in repos:
             print(f"\n--- Computing centrality for {repo} ---")

@@ -32,7 +32,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Optional
 
-from config import DB_PATH
+from config import DB_PATH, REPOS_DIR
 
 
 def _connect() -> sqlite3.Connection:
@@ -166,24 +166,25 @@ GITHUB_OWNER_REPO = {
 def resolve_github_owner_repo(repo: str) -> Optional[tuple[str, str]]:
     if repo in GITHUB_OWNER_REPO:
         return GITHUB_OWNER_REPO[repo]
-    for base in [os.path.join("..", "repos", repo), os.path.join("repos", repo)]:
-        git_dir = os.path.join(base, ".git")
-        if os.path.isdir(git_dir):
-            try:
-                import subprocess
-                res = subprocess.run(
-                    ["git", "-C", base, "remote", "get-url", "origin"],
-                    capture_output=True, text=True, timeout=5
-                )
-                if res.returncode == 0:
-                    url = res.stdout.strip()
-                    m = re.search(r"github\.com[:/]([^/]+)/([^/\.]+)", url)
-                    if m:
-                        slug = (m.group(1), m.group(2))
-                        GITHUB_OWNER_REPO[repo] = slug
-                        return slug
-            except Exception:
-                pass
+    base = REPOS_DIR / repo
+    git_dir = base / ".git"
+    if git_dir.is_dir():
+        try:
+            import subprocess
+            import re
+            res = subprocess.run(
+                ["git", "-C", str(base), "remote", "get-url", "origin"],
+                capture_output=True, text=True, timeout=5
+            )
+            if res.returncode == 0:
+                url = res.stdout.strip()
+                m = re.search(r"github\.com[:/]([^/]+)/([^/\.]+)", url)
+                if m:
+                    slug = (m.group(1), m.group(2))
+                    GITHUB_OWNER_REPO[repo] = slug
+                    return slug
+        except Exception:
+            pass
     return None
 
 
@@ -418,18 +419,20 @@ def get_source_snippet(repo: str, file_path: str, start_line: int, end_line: int
     at ../repos/httpx/... and ../repos/got/... respectively -- so the real
     disk path needs repo-specific handling, not a single naive join.
     """
-    candidates = [
-        os.path.join("..", "repos", repo, file_path),
-        os.path.join("repos", repo, file_path),
-    ]
-    disk_path = None
-    for c in candidates:
-        if os.path.isfile(c):
-            disk_path = c
-            break
-
-    if not disk_path:
-        return None
+    disk_path = REPOS_DIR / repo / file_path
+    if not disk_path.is_file():
+        candidates = [
+            REPOS_DIR / repo / file_path,
+            REPOS_DIR / file_path,
+        ]
+        found = None
+        for c in candidates:
+            if c.is_file():
+                found = c
+                break
+        if not found:
+            return None
+        disk_path = found
 
     with open(disk_path, encoding="utf-8", errors="replace") as f:
         all_lines = f.readlines()

@@ -28,7 +28,7 @@ import subprocess
 from pathlib import Path
 import sys
 
-from config import DB_PATH
+from config import DB_PATH, REPOS_DIR
 from graph_schema import save_graph
 from resolve_imports import build_graph_with_imports
 from resolve_calls import resolve_calls_for_file, CallResolutionStats
@@ -38,7 +38,7 @@ from resolve_inheritance import resolve_inheritance_for_file, InheritanceStats
 from extract_symbols import find_source_files
 
 
-def ensure_repo_cloned(repo_spec: str, repos_dir: Path = Path("repos")) -> tuple[str, Path]:
+def ensure_repo_cloned(repo_spec: str, repos_dir: Path = REPOS_DIR) -> tuple[str, Path]:
     """
     Ensures a repository is cloned locally.
     Supports full URLs (https://github.com/psf/requests.git), 'owner/repo' (psf/requests), or local folder names.
@@ -62,7 +62,7 @@ def ensure_repo_cloned(repo_spec: str, repos_dir: Path = Path("repos")) -> tuple
     return name, dest
 
 
-def discover_repos(args: list[str] | None = None, repos_dir: Path = Path("repos")) -> list[tuple[str, Path]]:
+def discover_repos(args: list[str] | None = None, repos_dir: Path = REPOS_DIR) -> list[tuple[str, Path]]:
     if args:
         return [ensure_repo_cloned(arg, repos_dir) for arg in args]
 

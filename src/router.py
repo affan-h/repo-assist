@@ -10,6 +10,7 @@ RUN FROM src/: python3 router.py   (runs against real code_graph.db)
 
 import re
 
+from config import REPOS_DIR
 import query_tools as tools
 
 
@@ -93,17 +94,8 @@ def search_source_code(repo: str, query: str, limit: int = 3) -> list[dict]:
     if not query_terms:
         return []
 
-    candidates = [
-        os.path.join("..", "repos", repo),
-        os.path.join("repos", repo),
-    ]
-    root = None
-    for c in candidates:
-        if os.path.isdir(c):
-            root = c
-            break
-
-    if not root:
+    root = REPOS_DIR / repo
+    if not root.is_dir():
         return []
 
     skip_dirs = {"node_modules", ".git", ".venv", "venv", "__pycache__", "tests", "test", "dist", "build", ".pytest_cache", ".mypy_cache"}

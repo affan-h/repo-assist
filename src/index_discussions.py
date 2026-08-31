@@ -232,6 +232,22 @@ def index_all_discussions_in_category(
     return total_indexed
 
 
+def index_repo_discussions(owner: str, repo: str, token: str, db_path: str = DB_PATH, categories_filter: list[str] | None = None) -> int:
+    init_discussions_index_table(db_path)
+    categories = get_categories(owner, repo, token)
+    if not categories:
+        return 0
+    total = 0
+    target_cats = [c.lower() for c in (categories_filter or ["ideas", "general", "q&a", "announcements"])]
+    for cat in categories:
+        if any(t in cat["name"].lower() for t in target_cats):
+            try:
+                total += index_all_discussions_in_category(owner, repo, cat["id"], cat["name"], token, db_path)
+            except Exception as e:
+                print(f"Error indexing category {cat['name']}: {e}")
+    return total
+
+
 def main():
     if len(sys.argv) < 3:
         print("Usage: python3 src/index_discussions.py <owner> <repo> [category_name]")

@@ -47,7 +47,7 @@ import time
 import sqlite3
 import argparse
 
-from config import DB_PATH
+from config import DB_PATH, REPOS_DIR
 # NOTE: `ollama` is deliberately NOT imported at module level. It's imported
 # inside summarize_one() instead, so that the schema/symbol-fetching/
 # snippet-extraction/prompt-building logic in this file can be tested
@@ -345,7 +345,7 @@ def main():
         if repo not in known_names_cache:
             known_names_cache[repo] = get_all_known_symbol_names(conn, repo)
 
-        repo_root = f"repos/{repo}"
+        repo_root = str(REPOS_DIR / repo)
         source_code = get_source_snippet(repo_root, file_path, start_line, end_line)
         called, instantiated = get_callees(conn, repo, qualified_name)
         result = summarize_one(name, kind, parent_class, source_code, called, instantiated)
