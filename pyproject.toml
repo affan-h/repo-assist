@@ -6,6 +6,8 @@ requires-python = ">=3.10"
 dependencies = [
     "pydantic-ai",
     "requests",
+    "pathspec",
+    "networkx",
 ]
 
 [project.scripts]
@@ -29,4 +31,5 @@ py-modules = [
     "fetch_got_releases",
     "link_pr_to_discussions",
     "build_docs_table",
+    "rank_symbols",
 ]

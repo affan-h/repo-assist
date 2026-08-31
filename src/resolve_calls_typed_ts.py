@@ -25,11 +25,9 @@ from pathlib import Path
 from tree_sitter import Language, Parser
 import tree_sitter_typescript as tsts
 
-import sys
-sys.path.insert(0, "src")
 from graph_schema import CodeGraph, save_graph
 from resolve_imports import build_graph_with_imports
-from extract_symbols import should_skip_dir
+from extract_symbols import find_source_files, should_skip_dir, tsx_parser
 
 
 TS_LANGUAGE = Language(tsts.language_typescript())
@@ -276,7 +274,8 @@ def resolve_calls_using_type_map_ts(
 def process_typescript_file(file_path: Path, repo_root: Path, repo: str, cg: CodeGraph, stats: TypedCallStatsTS):
     rel_path = str(file_path.relative_to(repo_root))
     source_code = file_path.read_bytes()
-    tree = ts_parser.parse(source_code)
+    parser = tsx_parser if file_path.suffix == ".tsx" else ts_parser
+    tree = parser.parse(source_code)
     root = tree.root_node
 
     def walk(node):
@@ -296,32 +295,32 @@ def main():
     print("Rebuilding graph with files, symbols, imports, and base CALLS edges (Steps 7-10)...\n")
     cg = build_graph_with_imports()
 
-    from resolve_calls import resolve_python_calls, resolve_typescript_calls, CallResolutionStats
+    from resolve_calls import resolve_calls_for_file, CallResolutionStats
 
     httpx_root = Path("repos/httpx")
     got_root = Path("repos/got")
 
-    for py_file in sorted(httpx_root.rglob("*.py")):
-        if any(should_skip_dir(part) for part in py_file.relative_to(httpx_root).parts[:-1]):
-            continue
-        resolve_python_calls(py_file, httpx_root, cg, CallResolutionStats())
+    repos = [
+        ("httpx", httpx_root),
+        ("got", got_root),
+    ]
 
-    for ts_file in sorted(got_root.rglob("*.ts")):
-        if any(should_skip_dir(part) for part in ts_file.relative_to(got_root).parts[:-1]):
+    for repo_name, repo_root in repos:
+        if not repo_root.exists():
             continue
-        resolve_typescript_calls(ts_file, got_root, cg, CallResolutionStats())
+        base_stats = CallResolutionStats()
+        for f in find_source_files(repo_root):
+            resolve_calls_for_file(f, repo_root, repo_name, cg, base_stats)
 
     base_edges = sum(1 for e in cg.graph.edges() if e == "CALLS")
     print(f"Base (untyped, both languages) CALLS edges: {base_edges}\n")
 
     print("Resolving typed CALLS edges for TypeScript (got)...")
     stats = TypedCallStatsTS()
-    for ts_file in sorted(got_root.rglob("*.ts")):
-        if any(should_skip_dir(part) for part in ts_file.relative_to(got_root).parts[:-1]):
-            continue
-        process_typescript_file(ts_file, got_root, "got", cg, stats)
-
-    stats.report("got")
+    if got_root.exists():
+        for ts_file in find_source_files(got_root, extensions=(".ts", ".tsx")):
+            process_typescript_file(ts_file, got_root, "got", cg, stats)
+        stats.report("got")
 
     total_edges = sum(1 for e in cg.graph.edges() if e == "CALLS")
     print(f"\nTotal CALLS edges after TypeScript typed resolution: {total_edges}")

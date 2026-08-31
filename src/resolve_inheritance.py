@@ -34,12 +34,10 @@ from tree_sitter import Language, Parser
 import tree_sitter_python as tspython
 import tree_sitter_typescript as tsts
 
-import sys
-sys.path.insert(0, "src")
 from config import DB_PATH
 from graph_schema import CodeGraph, save_graph
 from resolve_imports import build_graph_with_imports
-from extract_symbols import should_skip_dir
+from extract_symbols import find_source_files, should_skip_dir, tsx_parser
 
 
 PY_LANGUAGE = Language(tspython.language())
@@ -79,7 +77,9 @@ def extract_python_base_classes(class_node, source_code) -> list[str]:
     return bases
 
 
-def resolve_python_inheritance(file_path: Path, repo_root: Path, cg: CodeGraph, stats: InheritanceStats):
+def resolve_python_inheritance(
+    file_path: Path, repo_root: Path, cg: CodeGraph, stats: InheritanceStats, repo: str = "httpx"
+):
     rel_path = str(file_path.relative_to(repo_root))
     source_code = file_path.read_bytes()
     tree = py_parser.parse(source_code)
@@ -92,10 +92,10 @@ def resolve_python_inheritance(file_path: Path, repo_root: Path, cg: CodeGraph, 
             if len(bases) > 1:
                 stats.classes_with_multiple_parents += 1
             for base_name in bases:
-                child_idx = cg.find_all_symbol_matches("httpx", rel_path, cls_name)
+                child_idx = cg.find_all_symbol_matches(repo, rel_path, cls_name)
                 # Base class may be defined in ANY file (not just this one) --
                 # search the whole repo, same approach as call resolution.
-                parent_match = _find_class_in_repo(cg, "httpx", base_name)
+                parent_match = _find_class_in_repo(cg, repo, base_name)
                 if child_idx and parent_match is not None:
                     child_node_idx = child_idx[0][1]
                     parent_node_idx = parent_match
@@ -123,10 +123,13 @@ def extract_typescript_base_class(class_node, source_code) -> str | None:
     return None
 
 
-def resolve_typescript_inheritance(file_path: Path, repo_root: Path, cg: CodeGraph, stats: InheritanceStats):
+def resolve_typescript_inheritance(
+    file_path: Path, repo_root: Path, cg: CodeGraph, stats: InheritanceStats, repo: str = "got"
+):
     rel_path = str(file_path.relative_to(repo_root))
     source_code = file_path.read_bytes()
-    tree = ts_parser.parse(source_code)
+    parser = tsx_parser if file_path.suffix == ".tsx" else ts_parser
+    tree = parser.parse(source_code)
     root = tree.root_node
 
     def walk(node):
@@ -136,8 +139,8 @@ def resolve_typescript_inheritance(file_path: Path, repo_root: Path, cg: CodeGra
                 cls_name = _text(name_node, source_code)
                 base_name = extract_typescript_base_class(node, source_code)
                 if base_name is not None:
-                    child_idx = cg.find_all_symbol_matches("got", rel_path, cls_name)
-                    parent_match = _find_class_in_repo(cg, "got", base_name)
+                    child_idx = cg.find_all_symbol_matches(repo, rel_path, cls_name)
+                    parent_match = _find_class_in_repo(cg, repo, base_name)
                     if child_idx and parent_match is not None:
                         child_node_idx = child_idx[0][1]
                         parent_node_idx = parent_match
@@ -212,30 +215,36 @@ def resolve_method_with_inheritance(
     return None
 
 
+def resolve_inheritance_for_file(
+    file_path: Path, repo_root: Path, repo: str, cg: CodeGraph, stats: InheritanceStats
+):
+    """Dispatches to the appropriate language inheritance resolver based on file extension."""
+    if file_path.suffix == ".py":
+        resolve_python_inheritance(file_path, repo_root, cg, stats, repo=repo)
+    elif file_path.suffix in (".ts", ".tsx"):
+        resolve_typescript_inheritance(file_path, repo_root, cg, stats, repo=repo)
+
+
 # ── Main ─────────────────────────────────────────────────────────────────
 
 def main():
     print("Rebuilding graph with files, symbols, imports (Steps 7-9)...\n")
     cg = build_graph_with_imports()
 
-    httpx_root = Path("repos/httpx")
-    got_root = Path("repos/got")
+    repos = [
+        ("httpx", Path("repos/httpx")),
+        ("got", Path("repos/got")),
+    ]
 
     print("Resolving inheritance (EXTENDS edges)...")
 
-    py_stats = InheritanceStats()
-    for py_file in sorted(httpx_root.rglob("*.py")):
-        if any(should_skip_dir(part) for part in py_file.relative_to(httpx_root).parts[:-1]):
+    for repo_name, repo_root in repos:
+        if not repo_root.exists():
             continue
-        resolve_python_inheritance(py_file, httpx_root, cg, py_stats)
-    py_stats.report("httpx")
-
-    ts_stats = InheritanceStats()
-    for ts_file in sorted(got_root.rglob("*.ts")):
-        if any(should_skip_dir(part) for part in ts_file.relative_to(got_root).parts[:-1]):
-            continue
-        resolve_typescript_inheritance(ts_file, got_root, cg, ts_stats)
-    ts_stats.report("got")
+        stats = InheritanceStats()
+        for f in find_source_files(repo_root):
+            resolve_inheritance_for_file(f, repo_root, repo_name, cg, stats)
+        stats.report(repo_name)
 
     extends_edges = sum(1 for e in cg.graph.edges() if e == "EXTENDS")
     print(f"\nTotal EXTENDS edges in graph: {extends_edges}")

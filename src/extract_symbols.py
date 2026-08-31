@@ -46,16 +46,15 @@ class FileResult:
 # ── Language setup ──────────────────────────────────────────────────────────
 
 PY_LANGUAGE = Language(tspython.language())
-# tree_sitter_typescript exposes two grammars: language_typescript() for .ts
-# and language_tsx() for .tsx (JSX-in-TS). got is plain TypeScript, no JSX,
-# so we only need language_typescript().
 TS_LANGUAGE = Language(tsts.language_typescript())
+TSX_LANGUAGE = Language(tsts.language_tsx())
 
 py_parser = Parser(PY_LANGUAGE)
 ts_parser = Parser(TS_LANGUAGE)
+tsx_parser = Parser(TSX_LANGUAGE)
 
 
-# ── Directories to skip in both repos ────────────────────────────────────────
+# ── Directories to skip across all repos ────────────────────────────────────
 # Test files and build artifacts are noise for a first pass — we want to see
 # real source symbol counts, not test-suite bulk. We will decide later
 # (Phase 2 planning) whether tests should be indexed separately.
@@ -65,9 +64,62 @@ SKIP_DIR_NAMES = {
     "dist", "build", ".mypy_cache", ".pytest_cache", "test", "tests",
 }
 
+# Max file lines limit (skips giant generated / vendored code bundles)
+MAX_FILE_LINES = 5000
+
+
+def load_gitignore(repo_root: Path):
+    gitignore_path = repo_root / ".gitignore"
+    if gitignore_path.is_file():
+        try:
+            import pathspec
+            with open(gitignore_path, "r", encoding="utf-8", errors="replace") as f:
+                return pathspec.PathSpec.from_lines("gitwildmatch", f)
+        except Exception:
+            pass
+    return None
+
 
 def should_skip_dir(dir_name: str) -> bool:
     return dir_name in SKIP_DIR_NAMES or dir_name.startswith(".")
+
+
+def should_skip_file(file_path: Path, repo_root: Path, gitignore_spec=None) -> bool:
+    rel_path = file_path.relative_to(repo_root)
+    # Check directory parts
+    for part in rel_path.parts[:-1]:
+        if should_skip_dir(part):
+            return True
+
+    # Check gitignore
+    if gitignore_spec is not None:
+        rel_posix = rel_path.as_posix()
+        if gitignore_spec.match_file(rel_posix):
+            return True
+
+    # Check line count
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            lines = sum(1 for _ in f)
+        if lines > MAX_FILE_LINES:
+            return True
+    except Exception:
+        pass
+
+    return False
+
+
+def find_source_files(repo_root: Path, extensions: tuple[str, ...] = (".py", ".ts", ".tsx")) -> list[Path]:
+    gitignore_spec = load_gitignore(repo_root)
+    source_files = []
+    for ext in extensions:
+        for path in repo_root.rglob(f"*{ext}"):
+            if not path.is_file():
+                continue
+            if should_skip_file(path, repo_root, gitignore_spec):
+                continue
+            source_files.append(path)
+    return sorted(source_files)
 
 
 # ── Python extraction ────────────────────────────────────────────────────────
@@ -126,10 +178,10 @@ def extract_python_symbols(file_path: Path, repo_root: Path) -> FileResult:
 # print anything unrecognized so we can see what we're missing, rather than
 # silently dropping symbols.
 
-def extract_typescript_symbols(file_path: Path, repo_root: Path) -> FileResult:
+def extract_typescript_symbols(file_path: Path, repo_root: Path, parser: Parser = ts_parser) -> FileResult:
     rel_path = str(file_path.relative_to(repo_root))
     source_code = file_path.read_bytes()
-    tree = ts_parser.parse(source_code)
+    tree = parser.parse(source_code)
     root = tree.root_node
 
     result = FileResult(file_path=rel_path, parse_error=root.has_error)
@@ -300,15 +352,42 @@ def extract_typescript_symbols(file_path: Path, repo_root: Path) -> FileResult:
     return result
 
 
+def extract_symbols_for_file(file_path: Path, repo_root: Path) -> FileResult:
+    """Dispatches to the appropriate language grammar based on file extension."""
+    if file_path.suffix == ".py":
+        return extract_python_symbols(file_path, repo_root)
+    elif file_path.suffix == ".tsx":
+        return extract_typescript_symbols(file_path, repo_root, parser=tsx_parser)
+    elif file_path.suffix == ".ts":
+        return extract_typescript_symbols(file_path, repo_root, parser=ts_parser)
+    else:
+        rel = str(file_path.relative_to(repo_root))
+        return FileResult(file_path=rel, skipped_reason=f"Unsupported file extension: {file_path.suffix}")
+
+
 # ── Repo walkers ──────────────────────────────────────────────────────────
 
 def walk_repo(repo_root: Path, extension: str, extractor) -> list[FileResult]:
+    gitignore_spec = load_gitignore(repo_root)
     results = []
     for path in sorted(repo_root.rglob(f"*{extension}")):
-        if any(should_skip_dir(part) for part in path.relative_to(repo_root).parts[:-1]):
+        if should_skip_file(path, repo_root, gitignore_spec):
             continue
         try:
             results.append(extractor(path, repo_root))
+        except Exception as e:
+            rel = str(path.relative_to(repo_root))
+            results.append(FileResult(file_path=rel, skipped_reason=f"{type(e).__name__}: {e}"))
+    return results
+
+
+def discover_and_extract_repo(repo_root: Path) -> list[FileResult]:
+    """Finds all source files in repo_root and extracts symbols via extension dispatch."""
+    source_files = find_source_files(repo_root)
+    results = []
+    for path in source_files:
+        try:
+            results.append(extract_symbols_for_file(path, repo_root))
         except Exception as e:
             rel = str(path.relative_to(repo_root))
             results.append(FileResult(file_path=rel, skipped_reason=f"{type(e).__name__}: {e}"))

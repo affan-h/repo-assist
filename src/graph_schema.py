@@ -46,6 +46,7 @@ class SymbolNode:
     start_line: int
     end_line: int
     parent_class: Optional[str] = None
+    pagerank_score: Optional[float] = None
 
 
 # ── The graph wrapper ────────────────────────────────────────────────────────
@@ -241,6 +242,7 @@ CREATE TABLE IF NOT EXISTS symbols (
     start_line INTEGER NOT NULL,
     end_line INTEGER NOT NULL,
     parent_class TEXT,
+    pagerank_score REAL,
     PRIMARY KEY (repo, file_path, qualified_name, start_line),
     FOREIGN KEY (repo, file_path) REFERENCES files(repo, path)
 );
@@ -298,10 +300,10 @@ def save_graph(cg: CodeGraph, db_path: str):
             qualified_name = f"{node.parent_class}.{node.name}" if node.parent_class else node.name
             cur.execute(
                 """INSERT OR REPLACE INTO symbols
-                   (repo, qualified_name, name, kind, file_path, start_line, end_line, parent_class)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (repo, qualified_name, name, kind, file_path, start_line, end_line, parent_class, pagerank_score)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (node.repo, qualified_name, node.name, node.kind, node.file_path,
-                 node.start_line, node.end_line, node.parent_class),
+                 node.start_line, node.end_line, node.parent_class, getattr(node, "pagerank_score", None)),
             )
 
     for u, v, payload in cg.graph.weighted_edge_list():

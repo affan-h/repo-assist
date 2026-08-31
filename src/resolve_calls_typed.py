@@ -35,10 +35,9 @@ from tree_sitter import Language, Parser
 import tree_sitter_python as tspython
 
 import sys
-sys.path.insert(0, "src")
 from graph_schema import CodeGraph, save_graph
 from resolve_imports import build_graph_with_imports
-from extract_symbols import should_skip_dir
+from extract_symbols import find_source_files, should_skip_dir
 
 
 PY_LANGUAGE = Language(tspython.language())
@@ -383,36 +382,32 @@ def main():
     print("Rebuilding graph with files, symbols, imports, and base CALLS edges (Steps 7-10)...\n")
     cg = build_graph_with_imports()
 
-    # Also run the base (untyped) call resolver first, so this pass adds
-    # ON TOP of it rather than replacing it.
-    from resolve_calls import resolve_python_calls, resolve_typescript_calls, CallResolutionStats
+    from resolve_calls import resolve_calls_for_file, CallResolutionStats
 
     httpx_root = Path("repos/httpx")
     got_root = Path("repos/got")
 
-    base_httpx_stats = CallResolutionStats()
-    for py_file in sorted(httpx_root.rglob("*.py")):
-        if any(should_skip_dir(part) for part in py_file.relative_to(httpx_root).parts[:-1]):
-            continue
-        resolve_python_calls(py_file, httpx_root, cg, base_httpx_stats)
+    repos = [
+        ("httpx", httpx_root),
+        ("got", got_root),
+    ]
 
-    base_got_stats = CallResolutionStats()
-    for ts_file in sorted(got_root.rglob("*.ts")):
-        if any(should_skip_dir(part) for part in ts_file.relative_to(got_root).parts[:-1]):
+    for repo_name, repo_root in repos:
+        if not repo_root.exists():
             continue
-        resolve_typescript_calls(ts_file, got_root, cg, base_got_stats)
+        base_stats = CallResolutionStats()
+        for f in find_source_files(repo_root):
+            resolve_calls_for_file(f, repo_root, repo_name, cg, base_stats)
 
     base_edges = sum(1 for e in cg.graph.edges() if e == "CALLS")
     print(f"Base (untyped) CALLS edges: {base_edges}\n")
 
     print("Resolving typed CALLS edges (Step 10b, Python only)...")
     stats = TypedCallStats()
-    for py_file in sorted(httpx_root.rglob("*.py")):
-        if any(should_skip_dir(part) for part in py_file.relative_to(httpx_root).parts[:-1]):
-            continue
-        process_python_file(py_file, httpx_root, "httpx", cg, stats)
-
-    stats.report("httpx")
+    if httpx_root.exists():
+        for py_file in find_source_files(httpx_root, extensions=(".py",)):
+            process_python_file(py_file, httpx_root, "httpx", cg, stats)
+        stats.report("httpx")
 
     total_edges = sum(1 for e in cg.graph.edges() if e == "CALLS")
     print(f"\nTotal CALLS edges after typed resolution: {total_edges}")

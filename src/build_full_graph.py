@@ -26,21 +26,22 @@ Run with:
 
 from pathlib import Path
 import sys
-sys.path.insert(0, "src")
 
 from config import DB_PATH
 from graph_schema import save_graph
 from resolve_imports import build_graph_with_imports
-from resolve_calls import resolve_python_calls, resolve_typescript_calls, CallResolutionStats
+from resolve_calls import resolve_calls_for_file, CallResolutionStats
 from resolve_calls_typed import process_python_file, TypedCallStats
 from resolve_calls_typed_ts import process_typescript_file, TypedCallStatsTS
-from resolve_inheritance import resolve_python_inheritance, resolve_typescript_inheritance, InheritanceStats
-from extract_symbols import should_skip_dir
+from resolve_inheritance import resolve_inheritance_for_file, InheritanceStats
+from extract_symbols import find_source_files
 
 
 def main():
-    httpx_root = Path("repos/httpx")
-    got_root = Path("repos/got")
+    repos = [
+        ("httpx", Path("repos/httpx")),
+        ("got", Path("repos/got")),
+    ]
 
     print("=" * 70)
     print("PHASE 1 (complete): building the full graph in one pipeline")
@@ -50,50 +51,44 @@ def main():
     cg = build_graph_with_imports()
 
     print("\n[2/5] Base CALLS/INSTANTIATES (self./this. direct calls)...")
-    httpx_call_stats = CallResolutionStats()
-    for py_file in sorted(httpx_root.rglob("*.py")):
-        if any(should_skip_dir(p) for p in py_file.relative_to(httpx_root).parts[:-1]):
+    for repo_name, repo_root in repos:
+        if not repo_root.exists():
             continue
-        resolve_python_calls(py_file, httpx_root, cg, httpx_call_stats)
-    httpx_call_stats.report("httpx")
-
-    got_call_stats = CallResolutionStats()
-    for ts_file in sorted(got_root.rglob("*.ts")):
-        if any(should_skip_dir(p) for p in ts_file.relative_to(got_root).parts[:-1]):
-            continue
-        resolve_typescript_calls(ts_file, got_root, cg, got_call_stats)
-    got_call_stats.report("got")
+        call_stats = CallResolutionStats()
+        for f in find_source_files(repo_root):
+            resolve_calls_for_file(f, repo_root, repo_name, cg, call_stats)
+        call_stats.report(repo_name)
 
     print("\n[3/5] Typed CALLS -- Python (local type inference)...")
-    py_typed_stats = TypedCallStats()
-    for py_file in sorted(httpx_root.rglob("*.py")):
-        if any(should_skip_dir(p) for p in py_file.relative_to(httpx_root).parts[:-1]):
+    for repo_name, repo_root in repos:
+        if not repo_root.exists():
             continue
-        process_python_file(py_file, httpx_root, "httpx", cg, py_typed_stats)
-    py_typed_stats.report("httpx")
+        py_typed_stats = TypedCallStats()
+        py_files = find_source_files(repo_root, extensions=(".py",))
+        if py_files:
+            for py_file in py_files:
+                process_python_file(py_file, repo_root, repo_name, cg, py_typed_stats)
+            py_typed_stats.report(repo_name)
 
     print("\n[4/5] Typed CALLS -- TypeScript (local type inference)...")
-    ts_typed_stats = TypedCallStatsTS()
-    for ts_file in sorted(got_root.rglob("*.ts")):
-        if any(should_skip_dir(p) for p in ts_file.relative_to(got_root).parts[:-1]):
+    for repo_name, repo_root in repos:
+        if not repo_root.exists():
             continue
-        process_typescript_file(ts_file, got_root, "got", cg, ts_typed_stats)
-    ts_typed_stats.report("got")
+        ts_typed_stats = TypedCallStatsTS()
+        ts_files = find_source_files(repo_root, extensions=(".ts", ".tsx"))
+        if ts_files:
+            for ts_file in ts_files:
+                process_typescript_file(ts_file, repo_root, repo_name, cg, ts_typed_stats)
+            ts_typed_stats.report(repo_name)
 
     print("\n[5/5] EXTENDS (inheritance)...")
-    httpx_inherit_stats = InheritanceStats()
-    for py_file in sorted(httpx_root.rglob("*.py")):
-        if any(should_skip_dir(p) for p in py_file.relative_to(httpx_root).parts[:-1]):
+    for repo_name, repo_root in repos:
+        if not repo_root.exists():
             continue
-        resolve_python_inheritance(py_file, httpx_root, cg, httpx_inherit_stats)
-    httpx_inherit_stats.report("httpx")
-
-    got_inherit_stats = InheritanceStats()
-    for ts_file in sorted(got_root.rglob("*.ts")):
-        if any(should_skip_dir(p) for p in ts_file.relative_to(got_root).parts[:-1]):
-            continue
-        resolve_typescript_inheritance(ts_file, got_root, cg, got_inherit_stats)
-    got_inherit_stats.report("got")
+        inherit_stats = InheritanceStats()
+        for f in find_source_files(repo_root):
+            resolve_inheritance_for_file(f, repo_root, repo_name, cg, inherit_stats)
+        inherit_stats.report(repo_name)
 
     print("\n" + "=" * 70)
     print("FINAL GRAPH STATS (single combined graph, all passes applied)")

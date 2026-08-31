@@ -32,11 +32,17 @@ from tree_sitter import Language, Parser
 import tree_sitter_python as tspython
 import tree_sitter_typescript as tsts
 
-import sys
-sys.path.insert(0, "src")
 from config import DB_PATH
 from graph_schema import CodeGraph, save_graph
-from extract_symbols import walk_repo, extract_python_symbols, extract_typescript_symbols, should_skip_dir
+from extract_symbols import (
+    walk_repo,
+    extract_python_symbols,
+    extract_typescript_symbols,
+    extract_symbols_for_file,
+    find_source_files,
+    should_skip_dir,
+    tsx_parser,
+)
 
 
 PY_LANGUAGE = Language(tspython.language())
@@ -162,7 +168,8 @@ def _resolve_python_relative(
 def resolve_typescript_imports(file_path: Path, repo_root: Path) -> list[str]:
     rel_path = file_path.relative_to(repo_root)
     source_code = file_path.read_bytes()
-    tree = ts_parser.parse(source_code)
+    parser = tsx_parser if file_path.suffix == ".tsx" else ts_parser
+    tree = parser.parse(source_code)
     root = tree.root_node
 
     resolved: list[str] = []
@@ -212,14 +219,12 @@ def _resolve_typescript_relative(importing_file: Path, raw_path: str, repo_root:
     normalized = Path(*parts) if parts else Path(".")
 
     # Import paths reference the eventual .js output even though the
-    # source file on disk is .ts -- confirmed by real got source
-    # (e.g. './create.js' resolving to source/create.ts). Rewrite the
-    # extension before checking existence.
-    if normalized.suffix == ".js":
-        normalized = normalized.with_suffix(".ts")
-    elif normalized.suffix == "":
-        # Some imports omit the extension entirely -- try .ts directly.
-        normalized = normalized.with_suffix(".ts")
+    # source file on disk is .ts/.tsx -- rewrite extension before checking.
+    if normalized.suffix in (".js", ".jsx", ""):
+        if (repo_root / normalized.with_suffix(".ts")).exists():
+            normalized = normalized.with_suffix(".ts")
+        elif (repo_root / normalized.with_suffix(".tsx")).exists():
+            normalized = normalized.with_suffix(".tsx")
 
     full_candidate = repo_root / normalized
     if full_candidate.exists():
@@ -227,12 +232,24 @@ def _resolve_typescript_relative(importing_file: Path, raw_path: str, repo_root:
     return None
 
 
+def resolve_imports_for_file(file_path: Path, repo_root: Path) -> list[str]:
+    """Dispatches to the appropriate language import resolver based on file extension."""
+    if file_path.suffix == ".py":
+        return resolve_python_imports(file_path, repo_root)
+    elif file_path.suffix in (".ts", ".tsx"):
+        return resolve_typescript_imports(file_path, repo_root)
+    return []
+
+
 # ── Main pipeline ─────────────────────────────────────────────────────────
 
-def build_graph_with_imports() -> CodeGraph:
+def build_graph_with_imports(repos: dict[str, Path] | None = None) -> CodeGraph:
     cg = CodeGraph()
-    httpx_root = Path("repos/httpx")
-    got_root = Path("repos/got")
+    if repos is None:
+        repos = {
+            "httpx": Path("repos/httpx"),
+            "got": Path("repos/got"),
+        }
 
     # ── Pass 1: add all File and Symbol nodes first. ──────────────────────
     # Import resolution needs every file already present as a node before
@@ -241,50 +258,43 @@ def build_graph_with_imports() -> CodeGraph:
 
     print("Pass 1: indexing files and symbols...")
 
-    httpx_results = walk_repo(httpx_root, ".py", extract_python_symbols)
-    for r in httpx_results:
-        cg.add_file("httpx", r.file_path, "python")
-        for s in r.symbols:
-            cg.add_symbol("httpx", s.name, s.kind, s.file_path, s.start_line, s.end_line, s.parent_class)
+    for repo_name, repo_root in repos.items():
+        if not repo_root.exists():
+            print(f"  {repo_name}: root directory {repo_root} not found, skipping.")
+            continue
+        files = find_source_files(repo_root)
+        for f in files:
+            rel_path = str(f.relative_to(repo_root))
+            language = "python" if f.suffix == ".py" else "typescript"
+            cg.add_file(repo_name, rel_path, language)
+            file_result = extract_symbols_for_file(f, repo_root)
+            for s in file_result.symbols:
+                cg.add_symbol(repo_name, s.name, s.kind, s.file_path, s.start_line, s.end_line, s.parent_class)
 
-    got_results = walk_repo(got_root, ".ts", extract_typescript_symbols)
-    for r in got_results:
-        cg.add_file("got", r.file_path, "typescript")
-        for s in r.symbols:
-            cg.add_symbol("got", s.name, s.kind, s.file_path, s.start_line, s.end_line, s.parent_class)
+        print(f"  {repo_name}: {len(files)} files indexed")
 
-    print(f"  httpx: {len(httpx_results)} files indexed")
-    print(f"  got:   {len(got_results)} files indexed\n")
+    print()
 
     # ── Pass 2: resolve imports now that every file node exists. ──────────
 
     print("Pass 2: resolving imports...")
 
-    httpx_import_count = 0
-    for py_file in sorted(httpx_root.rglob("*.py")):
-        if any(should_skip_dir(part) for part in py_file.relative_to(httpx_root).parts[:-1]):
+    for repo_name, repo_root in repos.items():
+        if not repo_root.exists():
             continue
-        from_file = str(py_file.relative_to(httpx_root))
-        targets = resolve_python_imports(py_file, httpx_root)
-        for target in targets:
-            edge = cg.add_import("httpx", from_file, target)
-            if edge is not None:
-                httpx_import_count += 1
+        import_count = 0
+        files = find_source_files(repo_root)
+        for f in files:
+            from_file = str(f.relative_to(repo_root))
+            targets = resolve_imports_for_file(f, repo_root)
+            for target in targets:
+                edge = cg.add_import(repo_name, from_file, target)
+                if edge is not None:
+                    import_count += 1
 
-    got_import_count = 0
-    for ts_file in sorted(got_root.rglob("*.ts")):
-        if any(should_skip_dir(part) for part in ts_file.relative_to(got_root).parts[:-1]):
-            continue
-        from_file = str(ts_file.relative_to(got_root))
-        targets = resolve_typescript_imports(ts_file, got_root)
-        for target in targets:
-            edge = cg.add_import("got", from_file, target)
-            if edge is not None:
-                got_import_count += 1
+        print(f"  {repo_name}: {import_count} IMPORTS edges resolved")
 
-    print(f"  httpx: {httpx_import_count} IMPORTS edges resolved")
-    print(f"  got:   {got_import_count} IMPORTS edges resolved\n")
-
+    print()
     return cg
 
 

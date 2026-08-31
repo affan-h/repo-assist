@@ -363,19 +363,32 @@ them:
   (`Source: CODE#Client`) against the single canonical DB. This is the
   `checkpoint-full-pipeline-verified` baseline — the true regression
   reference point for everything from here forward.
-- **RESOLVED: Consolidated all database path literals into `src/config.py`.**
-  Eliminated all independently hardcoded `"data/code_graph.db"` and
-  `"../data/code_graph.db"` literals across all phase scripts, agents, and
-  tools (`build_full_graph.py`, `mine_history.py`, `fetch_pr.py`,
-  `fetch_issue.py`, `fetch_discussion.py`, `fetch_got_releases.py`,
-  `build_docs_table.py`, `backfill_missing_docs.py`,
-  `build_embeddings_index.py`, `compute_churn.py`, `compute_complexity.py`,
-  `compute_risk_scores.py`, `compute_centrality.py`, `resolve_calls.py`,
-  `resolve_imports.py`, `resolve_inheritance.py`, `summarize_symbols.py`,
-  `index_discussions.py`, `link_pr_to_discussions.py`, `query_tools.py`,
-  `orchestrator.py`, `grader.py`, `docs_agent.py`). All consumers now import
-  `DB_PATH = "data/code_graph.db"` from `config.py` as the single source
-  of truth, permanently preventing stale duplicate path bugs.
+- **Phase 1 generalized to per-file language dispatch (checkpoint-phase1-generalized).**
+  All repo-name branching (`"httpx"` vs `"got"` hardcoded in
+  extract_symbols.py, resolve_imports.py, resolve_calls.py,
+  resolve_calls_typed.py/_ts.py, resolve_inheritance.py,
+  build_full_graph.py) replaced with per-file extension dispatch
+  (.py -> Python grammar, .ts/.tsx -> TS grammar) plus a `repo` string
+  now passed as a parameter instead of hardcoded. Added TSX grammar
+  support (wasn't present before). Centralized file exclusion
+  (node_modules/, .venv/, dist/, build/, __pycache__/, .git/, test/,
+  tests/, dot-dirs, .gitignore respect via `pathspec`, 5000-line cap)
+  in one shared location in extract_symbols.py rather than duplicated
+  per-script. Added rank_symbols.py: PageRank over CALLS/INSTANTIATES/
+  EXTENDS via `networkx`, writes `pagerank_score` onto each symbol
+  (graph_schema.py updated to add this field — a real, deliberate,
+  narrated schema change, not silent). Verified: httpx/got numbers
+  unchanged (864/406/42/65), both CLI regression checks pass (httpx
+  Client question correctly cited; got retry-default question
+  correctly abstained rather than hallucinating).
+- **`pyproject.toml`'s `dependencies` list was already stale before
+  this task** — it only listed `pydantic-ai` and `requests`, missing
+  the v2 dependencies the README documents (`onnxruntime`,
+  `huggingface_hub`, `transformers`, `numpy`, `rustworkx`) entirely.
+  `pathspec` and `networkx` (added by this task) were added to close
+  the immediate gap, but the file needs a full audit against what's
+  actually imported across the codebase — treat as a small standalone
+  follow-up task, not urgent but real.
 
 ---
 

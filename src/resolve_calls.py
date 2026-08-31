@@ -35,10 +35,10 @@ import tree_sitter_python as tspython
 import tree_sitter_typescript as tsts
 
 import sys
-sys.path.insert(0, "src")
 from config import DB_PATH
 from graph_schema import CodeGraph, SymbolNode, save_graph
 from resolve_imports import build_graph_with_imports
+from extract_symbols import find_source_files, should_skip_dir, tsx_parser
 
 
 PY_LANGUAGE = Language(tspython.language())
@@ -102,10 +102,10 @@ class CallResolutionStats:
 # ── Python call resolution ───────────────────────────────────────────────────
 
 def resolve_python_calls(
-    file_path: Path, repo_root: Path, cg: CodeGraph, stats: CallResolutionStats
+    file_path: Path, repo_root: Path, cg: CodeGraph, stats: CallResolutionStats, repo: str = "httpx"
 ):
     rel_path = str(file_path.relative_to(repo_root))
-    ensure_module_symbol(cg, "httpx", rel_path)
+    ensure_module_symbol(cg, repo, rel_path)
     source_code = file_path.read_bytes()
     tree = py_parser.parse(source_code)
     root = tree.root_node
@@ -179,10 +179,10 @@ def resolve_python_calls(
                         caller_qname, caller_class = get_enclosing_context(node)
                         if caller_class is not None:
                             target = cg.find_all_symbol_matches(
-                                "httpx", rel_path, f"{caller_class}.{method_name}"
+                                repo, rel_path, f"{caller_class}.{method_name}"
                             )
                             if target:
-                                _record_call(cg, "httpx", rel_path, caller_qname, target[0][1])
+                                _record_call(cg, repo, rel_path, caller_qname, target[0][1])
                                 stats.resolved += 1
                             else:
                                 stats.unresolved_target_not_found += 1
@@ -211,7 +211,7 @@ def resolve_python_calls(
                 # Plain function call: foo(...) -- check same-file top-level symbols
                 fn_name = source_code[fn_node.start_byte:fn_node.end_byte].decode("utf-8", errors="replace")
                 caller_qname, _ = get_enclosing_context(node)
-                target = cg.find_all_symbol_matches("httpx", rel_path, fn_name)
+                target = cg.find_all_symbol_matches(repo, rel_path, fn_name)
                 if target:
                     target_idx = target[0][1]
                     target_node = cg.graph[target_idx]
@@ -226,10 +226,10 @@ def resolve_python_calls(
                         # and would corrupt any call-chain trace (e.g.
                         # httpx-T1) that crossed a constructor call.
                         # Recorded as its own honest edge type instead.
-                        _record_instantiates(cg, "httpx", rel_path, caller_qname, target_idx)
+                        _record_instantiates(cg, repo, rel_path, caller_qname, target_idx)
                         stats.resolved_instantiates += 1
                     else:
-                        _record_call(cg, "httpx", rel_path, caller_qname, target_idx)
+                        _record_call(cg, repo, rel_path, caller_qname, target_idx)
                         stats.resolved += 1
                 else:
                     stats.unresolved_target_not_found += 1
@@ -246,12 +246,13 @@ def resolve_python_calls(
 # ── TypeScript call resolution ───────────────────────────────────────────────
 
 def resolve_typescript_calls(
-    file_path: Path, repo_root: Path, cg: CodeGraph, stats: CallResolutionStats
+    file_path: Path, repo_root: Path, cg: CodeGraph, stats: CallResolutionStats, repo: str = "got"
 ):
     rel_path = str(file_path.relative_to(repo_root))
-    ensure_module_symbol(cg, "got", rel_path)
+    ensure_module_symbol(cg, repo, rel_path)
     source_code = file_path.read_bytes()
-    tree = ts_parser.parse(source_code)
+    parser = tsx_parser if file_path.suffix == ".tsx" else ts_parser
+    tree = parser.parse(source_code)
     root = tree.root_node
 
     def get_enclosing_context(node):
@@ -298,10 +299,10 @@ def resolve_typescript_calls(
                     caller_qname, caller_class = get_enclosing_context(node)
                     if caller_class is not None:
                         target = cg.find_all_symbol_matches(
-                            "got", rel_path, f"{caller_class}.{method_name}"
+                            repo, rel_path, f"{caller_class}.{method_name}"
                         )
                         if target:
-                            _record_call(cg, "got", rel_path, caller_qname, target[0][1])
+                            _record_call(cg, repo, rel_path, caller_qname, target[0][1])
                             stats.resolved += 1
                         else:
                             stats.unresolved_target_not_found += 1
@@ -327,7 +328,7 @@ def resolve_typescript_calls(
             elif fn_node is not None and fn_node.type == "identifier":
                 fn_name = source_code[fn_node.start_byte:fn_node.end_byte].decode("utf-8", errors="replace")
                 caller_qname, _ = get_enclosing_context(node)
-                target = cg.find_all_symbol_matches("got", rel_path, fn_name)
+                target = cg.find_all_symbol_matches(repo, rel_path, fn_name)
                 if target:
                     target_idx = target[0][1]
                     target_node = cg.graph[target_idx]
@@ -335,10 +336,10 @@ def resolve_typescript_calls(
                         # Same fix as the Python resolver: a bare identifier
                         # call resolving to a class is a construction, not a
                         # method call. Kept as its own honest edge type.
-                        _record_instantiates(cg, "got", rel_path, caller_qname, target_idx)
+                        _record_instantiates(cg, repo, rel_path, caller_qname, target_idx)
                         stats.resolved_instantiates += 1
                     else:
-                        _record_call(cg, "got", rel_path, caller_qname, target_idx)
+                        _record_call(cg, repo, rel_path, caller_qname, target_idx)
                         stats.resolved += 1
                 else:
                     stats.unresolved_target_not_found += 1
@@ -350,6 +351,16 @@ def resolve_typescript_calls(
             walk(child)
 
     walk(root)
+
+
+def resolve_calls_for_file(
+    file_path: Path, repo_root: Path, repo: str, cg: CodeGraph, stats: CallResolutionStats
+):
+    """Dispatches to the appropriate language call resolver based on file extension."""
+    if file_path.suffix == ".py":
+        resolve_python_calls(file_path, repo_root, cg, stats, repo=repo)
+    elif file_path.suffix in (".ts", ".tsx"):
+        resolve_typescript_calls(file_path, repo_root, cg, stats, repo=repo)
 
 
 # ── Shared edge recording ────────────────────────────────────────────────────
@@ -392,28 +403,21 @@ def main():
     print("Rebuilding graph with files, symbols, and imports (Steps 7-9)...\n")
     cg = build_graph_with_imports()
 
-    httpx_root = Path("repos/httpx")
-    got_root = Path("repos/got")
-
-    from extract_symbols import should_skip_dir
+    repos = [
+        ("httpx", Path("repos/httpx")),
+        ("got", Path("repos/got")),
+    ]
 
     print("\nResolving CALLS edges (Step 10)...")
 
-    httpx_stats = CallResolutionStats()
-    for py_file in sorted(httpx_root.rglob("*.py")):
-        if any(should_skip_dir(part) for part in py_file.relative_to(httpx_root).parts[:-1]):
+    for repo_name, repo_root in repos:
+        if not repo_root.exists():
             continue
-        resolve_python_calls(py_file, httpx_root, cg, httpx_stats)
-    httpx_stats.report("httpx")
-    httpx_stats.report_samples("httpx")
-
-    got_stats = CallResolutionStats()
-    for ts_file in sorted(got_root.rglob("*.ts")):
-        if any(should_skip_dir(part) for part in ts_file.relative_to(got_root).parts[:-1]):
-            continue
-        resolve_typescript_calls(ts_file, got_root, cg, got_stats)
-    got_stats.report("got")
-    got_stats.report_samples("got")
+        stats = CallResolutionStats()
+        for f in find_source_files(repo_root):
+            resolve_calls_for_file(f, repo_root, repo_name, cg, stats)
+        stats.report(repo_name)
+        stats.report_samples(repo_name)
 
     call_edges = sum(1 for e in cg.graph.edges() if e == "CALLS")
     instantiates_edges = sum(1 for e in cg.graph.edges() if e == "INSTANTIATES")
