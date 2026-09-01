@@ -430,6 +430,23 @@ them:
     4. **Post-Ingestion Querying:** `POST /repos/bottle/ask` with `"What does the Bottle class do?"` returned `200 OK` with `Source: CODE#Bottle`.
     5. **Abstention Verification:** `POST /repos/got/ask` with `"Why does got default to 2 retries?"` returned `abstained: true` with honest reason.
     6. **CLI Regression Invariant:** `repo-assist ask httpx "What does the Client class do?"` run from `src/` passed with `Source: CODE#Client`.
+- **Reversion & Clean Database Repair for `mine_history.py` (`task/fix-mine-history-regression`).**
+  - **Context & Reversion:** Reverted `src/mine_history.py` back to the exact PyDriller-based implementation matching `main` (`git diff main -- src/mine_history.py` shows 0 diff).
+  - **Empirical Diagnosis:** Investigated why re-running `mine_history.py` after the revert appeared not to restore the historical 1012/1093 progress log numbers:
+    1. *Hypothesis Test (`INSERT OR REPLACE`):* Concretely tested in an empty, isolated database from scratch whether existing rows or primary key REPLACE semantics blocked clean re-mining. The fresh run yielded the exact same rows (987 for `httpx`, 826 for `got`, 0 merges), disproving the table-state hypothesis.
+    2. *Script Output vs SQL Deduplication:* In `mine_history.py`, `mine_file_history()` sums `total_commits_recorded += count` across all indexed files. When executed, the script prints:
+       - `httpx: 1012 total commit-file rows recorded`
+       - `got: 1093 total commit-file rows recorded`
+       These match the progress log numbers in Section 6. However, in SQLite, the table has `PRIMARY KEY (repo, file_path, commit_hash)`. The inner loop matches by basename (`mf.filename != Path(file_path).name`). When a commit touches multiple files sharing a basename (e.g. `__init__.py`, `index.ts`, `types.ts`), `count` increments for each match, but SQLite deduplicates into a single row per file. This accounts exactly for the deltas: 1012 - 25 = 987 for `httpx` (25 duplicate basename passes), and 1093 - 267 = 826 for `got` (267 duplicate basename passes).
+    3. *PyDriller Merge Behavior:* PyDriller's `Repository(..., filepath=...)` relies on Git's `git log --follow --format=%H path` to populate `filepath_commits`. In Git, `--follow` automatically prunes merge commits, and PyDriller filters out any commit not in that list. Consequently, PyDriller never yields merge commits when `filepath` is specified, meaning `change_type='MERGE'` was never inserted by the original pipeline.
+    4. *Environment:* Unqualified `python3` failed due to system Python 3.14 lacking `pydriller`, requiring `venv/bin/python3`.
+  - **Data Repair Execution:**
+    - Purged `commits` rows strictly for `repo IN ('httpx', 'got')` (leaving `requests`, `itsdangerous`, and `bottle` rows untouched).
+    - Executed `mine_history.py` cleanly using `venv/bin/python3`, recording `1012` commit-file rows for `httpx` and `1093` for `got`.
+  - **Verification Results:**
+    1. Database commit counts: `httpx` = 987, `got` = 826 (script console outputs: 1012 and 1093). Untouched repos: `bottle` = 1023, `itsdangerous` = 142, `requests` = 2387.
+    2. Merge commit rows: confirmed 0 (verified as expected PyDriller `--follow` behavior).
+    3. CLI regression verification: `repo-assist ask httpx "What does the Client class do?"` from `src/` passed with `Source: CODE#Client`.
 
 ---
 

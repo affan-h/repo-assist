@@ -70,95 +70,47 @@ def get_indexed_files(db_path: str, repo: str) -> list[str]:
 
 def mine_file_history(repo_path: str, repo_name: str, file_path: str, conn: sqlite3.Connection):
     """Mine commit history for ONE file, insert rows into the commits table."""
-    import subprocess
     from pathlib import Path
     cur = conn.cursor()
-    max_commits = MAX_COMMITS_PER_FILE or 500
+    count = 0
 
-    cmd = [
-        "git", "-C", str(repo_path), "log",
-        f"-n{max_commits}", "--numstat",
-        "--pretty=format:COMMIT:%H|%an|%ae|%aI|%s",
-        "--", file_path,
-    ]
-    try:
-        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        lines = res.stdout.splitlines()
+    for commit in Repository(repo_path, filepath=file_path).traverse_commits():
+        if MAX_COMMITS_PER_FILE is not None and count >= MAX_COMMITS_PER_FILE:
+            break
 
-        rows = []
-        current_commit = None
-
-        for line in lines:
-            if line.startswith("COMMIT:"):
-                parts = line[len("COMMIT:"):].split("|", 4)
-                if len(parts) == 5:
-                    current_commit = {
-                        "hash": parts[0],
-                        "author": parts[1],
-                        "email": parts[2],
-                        "date": parts[3],
-                        "msg": parts[4],
-                    }
-            elif line.strip() and current_commit:
-                stat_parts = line.split()
-                if len(stat_parts) >= 2:
-                    added = int(stat_parts[0]) if stat_parts[0].isdigit() else 0
-                    deleted = int(stat_parts[1]) if stat_parts[1].isdigit() else 0
-                    rows.append((
-                        repo_name, file_path, current_commit["hash"],
-                        current_commit["author"], current_commit["email"],
-                        current_commit["date"], current_commit["msg"],
-                        0, added, deleted, "MODIFY",
-                    ))
-                    current_commit = None
-
-        if rows:
-            cur.executemany(
+        if commit.merge:
+            # Merge commits show 0 modified_files by default (confirmed
+            # via real PyDriller output) -- we still record that this
+            # merge touched the file's history line, but without
+            # per-file added/deleted line counts, since PyDriller can't
+            # give us that without specifying which parent to diff against.
+            cur.execute(
                 """INSERT OR REPLACE INTO commits
                    (repo, file_path, commit_hash, author_name, author_email,
                     author_date, message, is_merge, added_lines, deleted_lines, change_type)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                rows,
+                (repo_name, file_path, commit.hash, commit.author.name, commit.author.email,
+                 str(commit.author_date), commit.msg, 1, None, None, "MERGE"),
             )
-            conn.commit()
+            count += 1
+            continue
 
-        return len(rows)
-
-    except Exception:
-        # Fallback to PyDriller if git subprocess is unavailable
-        rows = []
-        count = 0
-        for commit in Repository(repo_path, filepath=file_path, order='reverse').traverse_commits():
-            if MAX_COMMITS_PER_FILE is not None and count >= MAX_COMMITS_PER_FILE:
-                break
-            if commit.merge:
-                rows.append((
-                    repo_name, file_path, commit.hash, commit.author.name, commit.author.email,
-                    str(commit.author_date), commit.msg, 1, None, None, "MERGE",
-                ))
-                count += 1
-                continue
-            for mf in commit.modified_files:
-                if mf.filename != Path(file_path).name:
-                    continue
-                rows.append((
-                    repo_name, file_path, commit.hash, commit.author.name, commit.author.email,
-                    str(commit.author_date), commit.msg, 0, mf.added_lines, mf.deleted_lines,
-                    str(mf.change_type),
-                ))
-                count += 1
-
-        if rows:
-            cur.executemany(
+        for mf in commit.modified_files:
+            if mf.filename != Path(file_path).name:
+                continue  # Repository(filepath=...) can occasionally include
+                          # renamed/related files; only keep the exact match
+            cur.execute(
                 """INSERT OR REPLACE INTO commits
                    (repo, file_path, commit_hash, author_name, author_email,
                     author_date, message, is_merge, added_lines, deleted_lines, change_type)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                rows,
+                (repo_name, file_path, commit.hash, commit.author.name, commit.author.email,
+                 str(commit.author_date), commit.msg, 0, mf.added_lines, mf.deleted_lines,
+                 str(mf.change_type)),
             )
-            conn.commit()
+            count += 1
 
-        return count
+    return count
 
 
 def main():
