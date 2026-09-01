@@ -156,14 +156,14 @@ def fetch_pr_from_github(owner: str, repo: str, pr_number: int, token: str) -> d
         raise RuntimeError(f"GraphQL errors: {data['errors']}")
 
     pr_data = data["data"]["repository"]["pullRequest"]
-    rate_limit = data["data"]["rateLimit"]
+    rate_limit = data.get("data", {}).get("rateLimit", {})
 
     if pr_data is None:
         raise ValueError(f"PR #{pr_number} not found in {owner}/{repo} "
                           f"(wrong number, or it's an issue not a PR)")
 
-    print(f"  Rate limit: {rate_limit['remaining']}/{rate_limit['limit']} "
-          f"remaining, resets at {rate_limit['resetAt']}")
+    if rate_limit:
+        print(f"  Rate limit: {rate_limit['remaining']}/{rate_limit['limit']} remaining, resets at {rate_limit['resetAt']}", file=sys.stderr)
 
     return pr_data
 
@@ -206,7 +206,7 @@ def get_pr(owner: str, repo: str, pr_number: int, db_path: str = DB_PATH) -> dic
 
     cached = get_cached_pr(db_path, repo, pr_number)
     if cached is not None:
-        print(f"  Cache hit: PR #{pr_number} already fetched previously.")
+        print(f"  Cache hit: PR #{pr_number} already fetched previously.", file=sys.stderr)
         return cached
 
     token = os.environ.get("GITHUB_TOKEN")
@@ -217,7 +217,7 @@ def get_pr(owner: str, repo: str, pr_number: int, db_path: str = DB_PATH) -> dic
             "run: export GITHUB_TOKEN=ghp_your_token_here"
         )
 
-    print(f"  Cache miss: fetching PR #{pr_number} from GitHub live...")
+    print(f"  Cache miss: fetching PR #{pr_number} from GitHub live...", file=sys.stderr)
     pr_data = fetch_pr_from_github(owner, repo, pr_number, token)
     save_pr_to_cache(db_path, repo, pr_data)
 

@@ -859,31 +859,27 @@ def _gather_why_evidence(repo: str, question: str) -> dict:
         commits = tools.get_commit_history(repo, file_path)
         trace.append({"tool": "get_commit_history", "args": {"repo": repo, "file_path": file_path}, "result_count": len(commits)})
         commits_all.extend(commits)
-        all_commits_with_pr.extend(c for c in commits if c.get("pr_number"))
 
-        # CONFIRMED REAL FIELD (Phase 2 already populates this correctly,
-        # verified via direct query): related_issue_refs distinguishes a
-        # commit's own PR from OTHER issue numbers mentioned in the commit
-        # body (e.g. "Fixes #572"). This is exactly what's needed for
-        # ground truths citing bare Issue numbers (Y1, Y3, Y7) -- commit
-        # MESSAGES alone don't contain these (confirmed via direct testing:
-        # every #N in 15 sampled real commit messages was just the commit's
-        # own PR number), so this column is the real, only source for them.
         for c in commits:
-            refs = c.get("related_issue_refs")
-            if refs:
-                for ref in str(refs).split(","):
-                    ref = ref.strip()
-                    if ref.isdigit():
-                        all_issue_refs.append((int(ref), c))
+            msg = c.get("message") or ""
+            # Extract PR numbers directly from commit message text (e.g. "(#1274)", "PR #572")
+            pr_refs = [int(n) for n in re.findall(r"#(\d+)", msg)]
+            if pr_refs:
+                c["pr_number"] = pr_refs[0]
+                for ref in pr_refs:
+                    all_commits_with_pr.append((ref, c))
 
-    all_commits_with_pr.sort(key=lambda c: -_score_commit_relevance(c, question_terms))
+            # Distinguish explicit issue references (e.g. "Fixes #572", "Closes #1173")
+            issue_refs = [int(n) for n in re.findall(r"(?:fix|fixes|close|closes|resolve|resolves|issue|issues)\s*#(\d+)", msg, re.IGNORECASE)]
+            for ref in issue_refs:
+                all_issue_refs.append((ref, c))
+
+    all_commits_with_pr.sort(key=lambda pair: -_score_commit_relevance(pair[1], question_terms))
     all_issue_refs.sort(key=lambda pair: -_score_commit_relevance(pair[1], question_terms))
 
     seen_prs = set()
     ranked_pr_numbers = []
-    for c in all_commits_with_pr:
-        pr_num = c["pr_number"]
+    for pr_num, c in all_commits_with_pr:
         if pr_num not in seen_prs:
             seen_prs.add(pr_num)
             ranked_pr_numbers.append(pr_num)
@@ -902,7 +898,7 @@ def _gather_why_evidence(repo: str, question: str) -> dict:
 
     trace.append({
         "tool": "_score_commit_relevance",
-        "args": {"repo": repo, "total_files_checked": len(files_to_check), "total_prs_available": len({c["pr_number"] for c in all_commits_with_pr})},
+        "args": {"repo": repo, "total_files_checked": len(files_to_check), "total_prs_available": len({pair[0] for pair in all_commits_with_pr})},
         "result_count": len(ranked_pr_numbers),
     })
 
@@ -925,6 +921,13 @@ def _gather_why_evidence(repo: str, question: str) -> dict:
         trace.append({"tool": "get_pr", "args": {"repo": repo, "pr_number": pr_number}, "result_count": 1 if pr else 0})
         if pr:
             prs.append(_compact_pr(pr))
+        elif pr_number not in seen_issues and len(issues) < MAX_ISSUES_TO_FETCH:
+            # If GraphQL didn't find a PullRequest with this number, try fetching as an Issue
+            issue = tools.get_issue(repo, pr_number)
+            trace.append({"tool": "get_issue", "args": {"repo": repo, "issue_number": pr_number}, "result_count": 1 if issue else 0})
+            if issue:
+                issues.append(_compact_issue(issue))
+                seen_issues.add(pr_number)
 
         candidates = tools.find_linked_discussion(repo, pr_number)
         trace.append({"tool": "find_linked_discussion", "args": {"repo": repo, "pr_number": pr_number}, "result_count": len(candidates)})

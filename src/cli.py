@@ -25,6 +25,7 @@ v2's why/unanswerable_why regression lands.
 """
 
 import argparse
+import re
 import sys
 
 import router
@@ -35,8 +36,11 @@ FALLBACK_MODEL = "google:gemini-3.5-flash"
 
 CATEGORY_KEYWORDS = [
     ("why", ["why"]),
+    ("topology", [
+        "call chain", "trace the", "which files import", "files import",
+        "directly import", "import from", "import the",
+    ]),
     ("where", ["where"]),
-    ("topology", ["call chain", "trace the", "which files import", "import from"]),
     ("how", ["how does", "how do", "how is"]),
     ("what", ["what does", "what is", "what are"]),
 ]
@@ -45,9 +49,16 @@ CATEGORY_KEYWORDS = [
 def guess_category(question: str) -> str:
     q_lower = question.lower()
     for category, keywords in CATEGORY_KEYWORDS:
-        if any(kw in q_lower for kw in keywords):
+        if category == "where":
+            # Strip parenthetical clauses (e.g. "(where RequestError is defined)")
+            # so secondary location references don't hijack questions of other categories.
+            q_no_parens = re.sub(r"\(.*?\)", "", q_lower)
+            if re.search(r"\bwhere\b", q_no_parens):
+                return "where"
+        elif any(kw in q_lower for kw in keywords):
             return category
     return "what"  # reasonable default -- most questions are factual lookups
+
 
 
 def ask_v1(repo: str, question: str, category: str | None = None, verbose: bool = False) -> int:

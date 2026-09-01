@@ -208,12 +208,16 @@ def get_pr(repo: str, pr_number: int, allow_live_fetch: bool = True) -> Optional
     allow_live_fetch=False lets a caller force read-only behavior (e.g. for
     a dry offline test) without touching GITHUB_TOKEN/network at all.
     """
-    with _connect() as conn:
-        cur = conn.execute(
-            """SELECT * FROM pr_cache WHERE repo = ? AND pr_number = ?""",
-            (repo, pr_number),
-        )
-        row = cur.fetchone()
+    row = None
+    try:
+        with _connect() as conn:
+            cur = conn.execute(
+                """SELECT * FROM pr_cache WHERE repo = ? AND pr_number = ?""",
+                (repo, pr_number),
+            )
+            row = cur.fetchone()
+    except sqlite3.OperationalError:
+        row = None
 
     if row is None:
         if not allow_live_fetch:
@@ -223,17 +227,21 @@ def get_pr(repo: str, pr_number: int, allow_live_fetch: bool = True) -> Optional
             return None  # no known real GitHub slug for this repo -- can't fetch live
         owner, gh_repo = slug
         try:
-            from fetch_pr import get_pr as live_get_pr
+            from fetch_pr import get_pr as live_get_pr, init_pr_cache_table
+            init_pr_cache_table(DB_PATH)
             live_get_pr(owner, gh_repo, pr_number, db_path=DB_PATH)
         except Exception:
             return None  # network error, missing token, PR truly doesn't exist, etc. -- honest miss, not a crash
         # re-read from cache now that (if successful) it was just populated
-        with _connect() as conn:
-            cur = conn.execute(
-                """SELECT * FROM pr_cache WHERE repo = ? AND pr_number = ?""",
-                (repo, pr_number),
-            )
-            row = cur.fetchone()
+        try:
+            with _connect() as conn:
+                cur = conn.execute(
+                    """SELECT * FROM pr_cache WHERE repo = ? AND pr_number = ?""",
+                    (repo, pr_number),
+                )
+                row = cur.fetchone()
+        except sqlite3.OperationalError:
+            row = None
         if row is None:
             return None
 
@@ -258,12 +266,16 @@ def get_issue(repo: str, issue_number: int, allow_live_fetch: bool = True) -> Op
     number -- an honest reflection of a real external state, not a failure
     of this function. get_issue('got', N) works normally since got's Issues
     remain open (confirmed via direct testing)."""
-    with _connect() as conn:
-        cur = conn.execute(
-            """SELECT * FROM issue_cache WHERE repo = ? AND issue_number = ?""",
-            (repo, issue_number),
-        )
-        row = cur.fetchone()
+    row = None
+    try:
+        with _connect() as conn:
+            cur = conn.execute(
+                """SELECT * FROM issue_cache WHERE repo = ? AND issue_number = ?""",
+                (repo, issue_number),
+            )
+            row = cur.fetchone()
+    except sqlite3.OperationalError:
+        row = None
 
     if row is None:
         if not allow_live_fetch:
@@ -273,16 +285,20 @@ def get_issue(repo: str, issue_number: int, allow_live_fetch: bool = True) -> Op
             return None
         owner, gh_repo = slug
         try:
-            from fetch_issue import get_issue as live_get_issue
+            from fetch_issue import get_issue as live_get_issue, init_issue_cache_table
+            init_issue_cache_table(DB_PATH)
             live_get_issue(owner, gh_repo, issue_number, db_path=DB_PATH)
         except Exception:
             return None  # network error, missing token, issue closed-off/doesn't exist -- honest miss, not a crash
-        with _connect() as conn:
-            cur = conn.execute(
-                """SELECT * FROM issue_cache WHERE repo = ? AND issue_number = ?""",
-                (repo, issue_number),
-            )
-            row = cur.fetchone()
+        try:
+            with _connect() as conn:
+                cur = conn.execute(
+                    """SELECT * FROM issue_cache WHERE repo = ? AND issue_number = ?""",
+                    (repo, issue_number),
+                )
+                row = cur.fetchone()
+        except sqlite3.OperationalError:
+            row = None
         if row is None:
             return None
 

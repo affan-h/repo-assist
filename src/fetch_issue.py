@@ -142,19 +142,18 @@ def fetch_issue_from_github(owner: str, repo: str, issue_number: int, token: str
 
     repo_data = data.get("data", {}).get("repository")
     if repo_data is None:
-        print(f"  Repository {owner}/{repo} not found or inaccessible. Skipping.")
+        print(f"  Repository {owner}/{repo} not found or inaccessible. Skipping.", file=sys.stderr)
         return None
 
     issue_data = repo_data.get("issue")
     rate_limit = data.get("data", {}).get("rateLimit")
 
     if issue_data is None:
-        print(f"  Issue #{issue_number} not found in {owner}/{repo} (wrong number or Issues disabled).")
+        print(f"  Issue #{issue_number} not found in {owner}/{repo} (wrong number or Issues disabled).", file=sys.stderr)
         return None
 
     if rate_limit:
-        print(f"  Rate limit: {rate_limit['remaining']}/{rate_limit['limit']} "
-              f"remaining, resets at {rate_limit['resetAt']}")
+        print(f"  Rate limit: {rate_limit['remaining']}/{rate_limit['limit']} remaining, resets at {rate_limit['resetAt']}", file=sys.stderr)
 
     return issue_data
 
@@ -192,7 +191,7 @@ def get_issue(owner: str, repo: str, issue_number: int, db_path: str = DB_PATH) 
 
     cached = get_cached_issue(db_path, repo, issue_number)
     if cached is not None:
-        print(f"  Cache hit: Issue #{issue_number} already fetched previously.")
+        print(f"  Cache hit: Issue #{issue_number} already fetched previously.", file=sys.stderr)
         return cached
 
     token = os.environ.get("GITHUB_TOKEN")
@@ -203,7 +202,7 @@ def get_issue(owner: str, repo: str, issue_number: int, db_path: str = DB_PATH) 
             "run: export GITHUB_TOKEN=ghp_your_token_here"
         )
 
-    print(f"  Cache miss: fetching Issue #{issue_number} from GitHub live...")
+    print(f"  Cache miss: fetching Issue #{issue_number} from GitHub live...", file=sys.stderr)
     issue_data = fetch_issue_from_github(owner, repo, issue_number, token)
     if issue_data is not None:
         save_issue_to_cache(db_path, repo, issue_data)
