@@ -1,0 +1,41 @@
+# repo-assist backend -- FastAPI service wrapping the ingestion pipeline
+# and query layer. See ARCHITECTURE.md for the full design.
+#
+# This container does NOT include Ollama -- Phase 2's local symbol
+# summarization step requires a running Ollama instance with
+# qwen2.5-coder:1.5b pulled. For local development, run Ollama on the
+# HOST machine (not in this container) and point OLLAMA_HOST at it --
+# see docker-compose.yml, which wires this up via host.docker.internal.
+# This is a real, disclosed constraint, not an oversight: bundling a
+# ~1GB local LLM runtime into this image would make it slow to build
+# and pull for no benefit in a demo context.
+
+FROM python:3.12-slim
+
+# git is required: PyDriller and the repo-cloning step both shell out to
+# real git commands against cloned target repos.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy source and documentation first. All files (including agents/ package
+# and module files) must be present when pip builds editable metadata,
+# otherwise setuptools packages.find evaluates to empty and subpackages fail to import.
+COPY src /app/src
+COPY repos /app/repos
+COPY ARCHITECTURE.md /app/ARCHITECTURE.md
+
+RUN pip install --no-cache-dir -e /app/src
+
+# data/ (at /app/src/data) and repos/ (at /app/repos) contain pre-seeded data
+# (code_graph.db and cloned repos) in the image. When mounted as named volumes
+# in docker-compose.yml, Docker automatically seeds the volume from these directories
+# on first startup, while persisting any new ingested repos across restarts.
+
+WORKDIR /app/src
+
+EXPOSE 8000
+
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]

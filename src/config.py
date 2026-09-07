@@ -4,8 +4,8 @@ from pathlib import Path
 # Base directory paths anchored to the location of this configuration file
 SRC_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SRC_DIR.parent
-DATA_DIR = SRC_DIR / "data"
-REPOS_DIR = PROJECT_ROOT / "repos"
+DATA_DIR = Path(os.environ.get("DATA_DIR", str(SRC_DIR / "data")))
+REPOS_DIR = Path(os.environ.get("REPOS_DIR", str(PROJECT_ROOT / "repos")))
 
 # Ensure data directory exists
 DATA_DIR.mkdir(parents=True, exist_ok=True)

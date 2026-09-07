@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 
-const API_BASE = 'http://127.0.0.1:8000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
 const PIPELINE_STAGES = [
   { key: 'QUEUED', label: '1. Queued in Pipeline', desc: 'Request received and scheduled in BackgroundTasks' },
@@ -238,7 +238,7 @@ export default function App() {
         </div>
         <div className="nav-status">
           <div className="status-dot"></div>
-          <span>Backend API Connected (127.0.0.1:8000)</span>
+          <span>Backend API Connected ({API_BASE.replace(/^https?:\/\//, '')})</span>
         </div>
       </header>
 

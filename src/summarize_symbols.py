@@ -292,13 +292,17 @@ def summarize_one(
     name: str, kind: str, parent_class: str | None, source_code: str,
     called: list[str], instantiated: list[str],
 ) -> dict:
+    import os
     import ollama  # deferred import -- see module-level note
 
     if not source_code.strip():
         return {"purpose": "(source unavailable)", "delegates_to": []}
 
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+    client = ollama.Client(host=ollama_host)
+
     prompt = build_prompt(name, kind, parent_class, source_code, called, instantiated)
-    response = ollama.chat(
+    response = client.chat(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
         format=SymbolSummary.model_json_schema(),

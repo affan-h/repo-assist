@@ -1,0 +1,62 @@
+# repo-assist -- local development / demo stack.
+#
+# Prerequisites on the HOST machine (not containerized, see
+# Dockerfile.backend for why):
+#   1. Ollama installed and running: `ollama serve`
+#   2. The summarization model pulled: `ollama pull qwen2.5-coder:1.5b`
+#
+# Required environment variables (create a .env file at the repo root,
+# see .env.example):
+#   GEMINI_API_KEY   -- used for synthesis and verification
+#   GITHUB_TOKEN     -- used for PR/issue/discussion/release fetching
+#
+# Usage:
+#   docker compose up --build
+#   -> backend:  http://localhost:8000
+#   -> frontend: http://localhost:5173
+#
+# Data persistence: the database and cloned repos live in named volumes
+# (repo-assist-data, repo-assist-repos), so they survive
+# `docker compose down` / restarts. To start completely fresh, run
+# `docker compose down -v` to also remove those volumes.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      # Lets the containerized backend reach Ollama running on the host
+      # machine, rather than requiring Ollama inside the container.
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - repo-assist-data:/app/src/data
+      - repo-assist-repos:/app/repos
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/repos')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  repo-assist-data:
+  repo-assist-repos:
