@@ -42,7 +42,6 @@ py-modules = [
     "router",
     "synthesizer",
     "query_tools",
-    "grader",
     "fetch_pr",
     "fetch_issue",
     "fetch_discussion",
@@ -65,7 +64,6 @@ py-modules = [
     "compute_risk_scores",
     "graph_schema",
     "summarize_symbols",
-    "merge_v1_v2",
     # v2 additions
     "orchestrator",
     "embeddings",

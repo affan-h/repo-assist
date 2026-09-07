@@ -1,5 +1,5 @@
 # repo-assist backend -- FastAPI service wrapping the ingestion pipeline
-# and query layer. See ARCHITECTURE.md for the full design.
+# and query layer.
 #
 # This container does NOT include Ollama -- Phase 2's local symbol
 # summarization step requires a running Ollama instance with
@@ -20,12 +20,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy source and documentation first. All files (including agents/ package
+# Copy source and repository seeds first. All files (including agents/ package
 # and module files) must be present when pip builds editable metadata,
 # otherwise setuptools packages.find evaluates to empty and subpackages fail to import.
 COPY src /app/src
 COPY repos /app/repos
-COPY ARCHITECTURE.md /app/ARCHITECTURE.md
 
 RUN pip install --no-cache-dir -e /app/src
 

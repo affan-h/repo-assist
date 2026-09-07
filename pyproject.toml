@@ -1,13 +1,25 @@
 [project]
 name = "repo-assist"
-version = "0.1.0"
-description = "Ask grounded questions about the httpx and got codebases -- backed by a real structural graph, commit/PR/discussion history, docs, and release notes."
+version = "0.2.0"
+description = "Grounded codebase intelligence powered by AST graphs, git history, docs, and multi-agent retrieval."
 requires-python = ">=3.10"
 dependencies = [
     "pydantic-ai",
     "requests",
-    "pathspec",
+    "onnxruntime",
+    "huggingface_hub",
+    "transformers",
+    "numpy",
+    "rustworkx",
+    "fastapi",
+    "uvicorn",
+    "pydriller",
+    "tree-sitter",
+    "tree-sitter-python",
+    "tree-sitter-typescript",
+    "ollama",
     "networkx",
+    "pathspec",
 ]
 
 [project.scripts]
@@ -20,16 +32,41 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 package-dir = {"" = "src"}
 py-modules = [
-    "config",
+    "api",
     "cli",
+    "config",
     "router",
     "synthesizer",
     "query_tools",
-    "grader",
     "fetch_pr",
     "fetch_issue",
+    "fetch_discussion",
     "fetch_got_releases",
     "link_pr_to_discussions",
     "build_docs_table",
+    "build_full_graph",
+    "extract_symbols",
+    "resolve_imports",
+    "resolve_calls",
+    "resolve_calls_typed",
+    "resolve_calls_typed_ts",
+    "resolve_inheritance",
     "rank_symbols",
+    "mine_history",
+    "index_discussions",
+    "compute_churn",
+    "compute_complexity",
+    "compute_centrality",
+    "compute_risk_scores",
+    "graph_schema",
+    "summarize_symbols",
+    # v2 additions
+    "orchestrator",
+    "embeddings",
+    "build_embeddings_index",
+    "backfill_missing_docs",
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["agents*"]

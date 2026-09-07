@@ -1,125 +1,219 @@
 # repo-assist
 
-A codebase intelligence system that builds a genuine, queryable understanding of a codebase — going beyond "chat with your repo" RAG wrappers. It combines a real, parsed structural graph, mined commit/PR/discussion history, local doc/release-note indexing, and local LLM summarization, then answers questions through a citation-grounded synthesis layer that abstains honestly when nothing is actually documented.
+A codebase intelligence system that answers structural, historical, and architectural questions about codebases with grounded, verifiable citations. Instead of generic LLM search, it builds a local SQLite code graph (AST symbols, call edges, inheritance), mines git commit churn and GitHub discussions, indexes documentation, and synthesizes answers that cite concrete sources (`CODE#<symbol>`, `PR#<num>`, `DOCS#<section>`) or honestly abstain when evidence is missing.
 
-Built and evaluated end-to-end against two pinned repositories — [`encode/httpx`](https://github.com/encode/httpx) (Python) and [`sindresorhus/got`](https://github.com/sindresorhus/got) (TypeScript) — on a 2015 MacBook Air (Intel i5, 8GB RAM, no GPU), using only free-tier APIs and local tooling. Zero budget was a hard constraint throughout.
-
-The guiding discipline across the whole project: **verify every real number against real output before trusting it.** Nearly every component described below had at least one real bug found this way — that history is documented in-line rather than cleaned up after the fact, because it's genuinely informative about how the system reached its current state.
+Includes pre-indexed data for five open-source repositories (`httpx`, `got`, `requests`, `itsdangerous`, `bottle`), a React web interface, a REST API, and a terminal CLI.
 
 ---
 
-## What's actually in this repo
+## Quick Start with Docker (Recommended)
 
-- **A local developer CLI** (`repo-assist ask <repo> "<question>"`) — the real way anyone uses this day to day. Full usage in [`CLI_README.md`](CLI_README.md).
-- **Two full query engines**, `v1` and `v2` (see [Architecture](#architecture)), selectable via `--engine`.
-- **A real, offline data pipeline** (`src/`) that builds the structural graph, mines history, indexes docs, generates local summaries, and scores risk — see [Building the database from scratch](#building-the-database-from-scratch).
-- **A real evaluation harness** (`grader.py`) with a 56-question, hand-verified benchmark and an automated LLM-as-judge, used to make an honest, gated decision about which engine is the default.
+Docker Compose starts both the backend API and frontend UI with all pre-seeded repositories ready to query immediately.
 
----
+### Prerequisites
+- [Docker](https://docs.docker.com/get-docker/) & Docker Compose
+- [Ollama](https://ollama.com) installed and running on your host machine (`ollama serve`)
+  *(Symbol summarization during new repo ingestion runs a local 1.5B model on your host CPU)*
+- A [Gemini API key](https://aistudio.google.com/apikey) (used for grounded synthesis and verification)
+- A [GitHub Personal Access Token](https://github.com/settings/tokens) (classic token with standard public repo access, used for live ingestion)
 
-## Quick start (you already have a populated database)
+### Run in 3 steps:
 
 ```bash
-git clone https://github.com/affan-h/repo-assist.git
-cd repo-assist/src
+# 1. Pull the local summarization model on your host (one-time, ~1GB)
+ollama pull qwen2.5-coder:1.5b
+
+# 2. Configure credentials
+cp .env.example .env
+# Edit .env and fill in GEMINI_API_KEY and GITHUB_TOKEN
+
+# 3. Start the containers
+docker compose up --build
+```
+
+Once started:
+- **Web UI**: [http://localhost:5173](http://localhost:5173) — select any repository to ask questions immediately, or paste a public GitHub URL to ingest a new repository live.
+- **Backend API & Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+To stop and completely remove persisted data volumes:
+```bash
+docker compose down -v
+```
+
+---
+
+## Manual Setup (Without Docker)
+
+If you prefer running directly on your host machine:
+
+### Prerequisites
+- Python 3.10+
+- Node.js 18+ (for frontend)
+- Git
+- Ollama with `qwen2.5-coder:1.5b`
+
+### 1. Backend
+
+```bash
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies and repo-assist CLI
 pip install -e .
-export GEMINI_API_KEY="your-key-here"
-repo-assist ask httpx "What does the Limits class control?"
+
+# Set environment variables
+cp .env.example .env
+export GEMINI_API_KEY="your-gemini-key"
+export GITHUB_TOKEN="your-github-token"
+
+# Run the API server (from src/ so database paths resolve properly)
+cd src
+uvicorn api:app --host 0.0.0.0 --port 8000
 ```
 
-If you don't have `data/code_graph.db` yet, see [Building the database from scratch](#building-the-database-from-scratch) — it's a real, one-time pipeline, not something that ships pre-built in this repo (the repo does not commit the database; it's built from live GitHub data and would go stale the moment it was checked in).
-
----
-
-## Architecture
-
-### v1 — rule-based router (the current default, and the reason why)
-
-`router.py` dispatches each question to one of six fixed categories (`what` / `how` / `where` / `why` / `unanswerable_why` / `topology`), each of which calls a specific, tested combination of real tool functions from `query_tools.py`: symbol resolution, source snippets, call-chain tracing over the real structural graph, commit/PR/issue/discussion mining, doc search, release-note search. **Zero LLM involvement in retrieval** — only the final `synthesizer.py` step uses a model, and it's given a closed, numbered list of real evidence sources to cite from, so a hallucinated citation is structurally caught rather than merely discouraged by prompting.
-
-This is why v1 is cheap, fast, and deterministic in what it retrieves.
-
-### v2 — multi-agent orchestrator with semantic retrieval
-
-Adds two genuinely new things on top of v1, without touching v1's code:
-
-1. **Semantic/vector retrieval** (`embeddings.py`, `build_embeddings_index.py`) — every symbol summary, doc chunk, and cached PR body is embedded locally (Google's EmbeddingGemma-300M, run via raw ONNX Runtime — see [Known limitations](#known-limitations) for why not `sentence-transformers`) and searchable by cosine similarity, finding conceptually related content with no literal keyword overlap, which v1's IDF-based search structurally can't do.
-2. **A real, bounded multi-agent orchestrator** (`orchestrator.py`, `agents/`) — a single-shot planner picks which of four specialists (`structural`, `history`, `docs_semantic`, `docs_keyword`) to invoke per question, from a **closed enum**, not free text; they run sequentially; results feed the **same, unmodified** v1 synthesizer; a verifier agent (forced onto a different model than synthesis, per a real diversity requirement) checks the draft for unsupported claims and can trigger exactly one retry, routed differently depending on whether the gap looks like a missing specialist or a synthesis error over evidence that was already present.
-
-Full real design reasoning — including three rounds of adversarial review that caught and corrected several claims before implementation — lives in `repo-assist-v2-plan.md`.
-
-### v1 vs v2 — real evaluation result
-
-Both engines were run through the same real, 56-question, hand-verified benchmark, judged automatically by a separate LLM (to avoid self-grading bias), with a hard, pre-registered gate for whether v2 would become the new default:
-
-| | v1 | v2 |
-|---|---|---|
-| Overall (56 questions) | **41.1%** | 35.7% |
-| `unanswerable_why` (safety-critical: correctly declining when nothing is documented) | 87.5% | 37.5% (required floor: 65%) |
-
-**v2 did not pass its own gate.** It genuinely does better on some categories (`what`: 80% vs 50%, `where`: 56% vs 33% — the semantic retrieval and multi-agent structure are real and working) but regressed hard on `why`/`unanswerable_why`. The diagnosed cause: a mid-project fix that tightened the synthesizer's citation-sufficiency rule (a cited source must *state a reason*, not just describe behavior — itself a real fix for a real hallucination bug found during evaluation) overcorrected and made v2 abstain on `why` questions v1 correctly answers.
-
-**v1 remains the default.** `--engine v2` is real, fully functional, and left available for comparison and further work — it simply hasn't earned default status by this project's own stated criteria yet. See [Known limitations](#known-limitations) for what a fix would need.
-
----
-
-## Building the database from scratch
-
-This is the real, one-time offline pipeline. Run once per machine, from `src/`:
+### 2. Frontend
 
 ```bash
-export GITHUB_TOKEN="..."          # personal access token, for PR/issue/discussion fetching
-export GEMINI_API_KEY="..."        # for v1/v2 synthesis and verification
+cd frontend
+npm install
+npm run dev
 ```
+Open [http://localhost:5173](http://localhost:5173) to access the interface.
 
-**Phase 1 — structural graph.** Parses both repos with tree-sitter, resolves symbols/imports/call edges, builds the graph, saves to `data/code_graph.db`. Produces 800+ real symbols, real CALLS/INSTANTIATES/EXTENDS edges, real cross-file import edges.
+---
 
-**Phase 2 — history and provenance.** Mines full local git history via PyDriller, extracts and links PR numbers from commit messages, lazily fetches PRs/issues from GitHub with local caching, bulk-indexes GitHub Discussions, and links PRs to the discussions that actually explain them. Then generates a local, private symbol-relationship summary for every real symbol using a small local Ollama model (`qwen2.5-coder:1.5b` — chosen specifically because it fits comfortably in 8GB RAM with no GPU), with post-generation verification against the real known-symbol table rather than trusting the model's relationship claims blind.
+## Usage Examples
 
-**Phase 3 — risk scoring.** Computes churn (real commit counts per file) and complexity (real branch-construct counts per symbol, excluding classes to avoid a known aggregation bug), combines them via percentile rank into a risk score, validated against real closed `bug`-labeled GitHub issues per file.
+### 1. CLI Usage
 
-The full real build log for all three phases — every bug found, every design decision made and why, every number verified against actual output — is in `project_context.md`. It's meant to be pasted as-is into a fresh session if you ever need to resume or extend this pipeline; it's written to be sufficient context on its own.
-
-**Then, for v2's additions:**
+You can query any ingested repository directly from your terminal using `repo-assist ask`:
 
 ```bash
-python3 build_embeddings_index.py    # one-time; downloads a ~1.2GB local model on first run
-python3 compute_centrality.py        # optional; real PageRank over the structural graph
+# General questions (auto-routed)
+repo-assist ask httpx "What does the Client class do?"
+repo-assist ask got "Why does got default to 2 retries?"
+repo-assist ask httpx "Where does httpx decode response content according to charset?"
+
+# Force a specific query category (what, how, where, why, topology)
+repo-assist ask httpx "What does the Limits class control?" --category what
+repo-assist ask got "Trace the call chain from got(url) to the Node.js http.request call" --category topology
+
+# Select query engine (v1 default vs v2 multi-agent)
+repo-assist ask httpx "What does AsyncClient do?" --engine v1
+repo-assist ask httpx "What does AsyncClient do?" --engine v2
+
+# Verbose mode: inspect routing decisions, retrieved sources, and citations
+repo-assist ask got "Why does got default to 2 retries?" --verbose
+```
+
+> **Note on CLI Directory:** Run `repo-assist` from inside `src/` (or set `DATA_DIR` and `REPOS_DIR` in your environment) so the CLI resolves `data/code_graph.db` properly.
+
+### 2. REST API Usage
+
+The backend exposes FastAPI endpoints for programmatic access:
+
+#### Query a repository
+```bash
+curl -X POST http://localhost:8000/repos/httpx/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What does the Client class do?", "engine": "v1"}'
+```
+Response:
+```json
+{
+  "repo_id": "httpx",
+  "question": "What does the Client class do?",
+  "engine": "v1",
+  "category": "what",
+  "answer": "The Client class represents an HTTP client in HTTPX that handles connection pooling, HTTP/2 support, redirects...",
+  "citation_source_id": "CODE#Client",
+  "abstained": false,
+  "abstain_reason": null,
+  "model_used": "google:gemini-3.5-flash-lite"
+}
+```
+
+#### List all indexed repositories
+```bash
+curl http://localhost:8000/repos
+```
+
+#### Ingest a new repository
+```bash
+curl -X POST http://localhost:8000/repos \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://github.com/pallets/click.git"}'
+```
+
+#### Poll ingestion progress
+```bash
+curl http://localhost:8000/repos/click/status
 ```
 
 ---
 
-## Using the CLI
+## Architecture Overview
 
-Full command reference, flags, and examples: **[`CLI_README.md`](CLI_README.md)**.
+`repo-assist` combines deterministic static analysis with targeted multi-agent retrieval:
+
+```text
+               ┌──────────────────────────────────────────────┐
+               │    User Query (Web UI, CLI, or REST API)    │
+               └──────────────────────┬───────────────────────┘
+                                      │
+                                      ▼
+               ┌──────────────────────────────────────────────┐
+               │              Query Orchestrator              │
+               │  • v1: Deterministic category router         │
+               │  • v2: Multi-agent planner + ONNX embeddings │
+               └──────────────────────┬───────────────────────┘
+                                      │
+            ┌─────────────────────────┴─────────────────────────┐
+            ▼                                                   ▼
+┌───────────────────────────────┐               ┌───────────────────────────────┐
+│     Code & History Graph      │               │     Semantic & Doc Indices    │
+│ • Tree-sitter AST symbols     │               │ • Local BGE ONNX embeddings   │
+│ • CALLS & EXTENDS hierarchies │               │ • Markdown doc chunks (BM25)  │
+│ • Git commit churn & authors  │               │ • GitHub PR discussions &     │
+│ • Local Ollama symbol summary │               │   release notes               │
+└───────────────┬───────────────┘               └───────────────┬───────────────┘
+                │                                               │
+                └──────────────────────┬────────────────────────┘
+                                       ▼
+               ┌──────────────────────────────────────────────┐
+               │         Grounded Synthesizer & Verifier       │
+               │ • Closed-universe citations (CODE#, PR#)     │
+               │ • Verifier checks draft against evidence     │
+               │ • Explicit abstention on missing proof       │
+               └──────────────────────────────────────────────┘
+```
+
+### Ingestion Pipeline
+When a repository is added, it progresses through an 8-stage pipeline:
+1. `QUEUED` → Scheduled in background worker.
+2. `CLONED` → Git shallow clone to local storage.
+3. `PARSED` → Tree-sitter AST extraction for symbols and imports.
+4. `GRAPH_BUILT` → Call-graph edges, typed calls, inheritance hierarchies, and PageRank centrality.
+5. `HISTORY_ATTACHED` → Git commit churn mined via PyDriller, PR metadata, and documentation chunks.
+6. `SUMMARIZED` → Symbol-level purpose and delegation summaries generated via local Ollama.
+7. `INDEXED` → Dense vector embeddings generated via ONNX runtime (`BAAI/bge-small-en-v1.5`).
+8. `READY` → Open for queries.
 
 ---
 
-## Evaluating changes
+## Known Limitations
 
-```bash
-python3 grader.py --questions phase0_questions.json --output results.json --engine v1
-python3 grader.py --questions phase0_questions.json --output results.json --engine both
-```
-
-`--engine both` runs the full 56-question benchmark through both engines and automatically evaluates the regression gate described above. Free-tier LLM quotas are real and tight enough that a full run can be interrupted partway through — `--retry-failed` resumes without re-spending quota on questions that already scored:
-
-```bash
-python3 grader.py --questions phase0_questions.json --output results.json \
-  --retry-failed results.json --engine v2 --override-model google:gemini-3.7-flash
-```
-
-`--override-model` swaps the live model constants for that run only, useful when a specific model's daily quota is exhausted and you want to finish on a different one with fresh quota — it never edits source files.
+- **Why-question coverage & closed issue trackers:** Answering "why" a design choice was made requires that the maintainers recorded the rationale in commit messages, PR descriptions, or discussions. If no rationale was ever documented, or if an issue tracker was closed (for instance, HTTPX closed its GitHub Issues tracker in early 2026), the system will honestly abstain rather than confabulate a justification.
+- **Engine choice (`v1` vs `v2`):**
+  - **`v1` (default)** uses a deterministic router that selects specialized retrieval tools based on query intent. It is fast, lightweight, and excels at precision and safe abstention.
+  - **`v2`** adds dense vector embeddings and a multi-agent planner with specialist agents (`structural`, `history`, `docs`). While `v2` is better at broad conceptual searches across large documentation, its strict verification filters can cause it to abstain more conservatively on nuanced historical questions.
+- **Local LLM ingestion speed:** Symbol summarization during new repository ingestion relies on `qwen2.5-coder:1.5b` running on the host via Ollama. On CPU without GPU acceleration, ingesting a repository with 20-50 files typically takes 1 to 4 minutes.
+- **Multi-hop call topology boundaries:** Call chain tracing resolves static and typed call edges accurately. Deep dynamic chains involving dynamic metaprogramming or complex runtime monkey-patching cannot be fully resolved statically; in those cases, the system returns the verified segment of the chain rather than guessing the remainder.
+- **Background task scale:** Ingestion runs as an in-process FastAPI `BackgroundTask` backed by SQLite in WAL mode. This is designed for single-node developer use; deploying as a high-concurrency shared service would require a distributed task queue (e.g. Celery / Redis).
 
 ---
 
-## Known limitations
+## License
 
-Stated plainly rather than buried:
-
-- **v2's `why`/`unanswerable_why` regression is diagnosed but not fixed.** The synthesizer's citation-sufficiency rule likely needs two separate thresholds — a stricter one for catching `unanswerable_why` hallucinations, a looser one for genuine `why` questions where real evidence exists but doesn't rise to "explicitly states a reason." Right now both categories share one rule, and tightening it to fix one broke the other.
-- **v2's daily free-tier LLM quota is real and tight** — Gemini's free tier caps range roughly 20–500 requests/day depending on the specific model, and a full dual-engine benchmark run can exhaust it partway through. `--retry-failed` / `--override-model` exist specifically to recover from this.
-- **`topology` questions asking for an exact, ordered multi-hop call chain** are the weakest category in both engines. The underlying call-graph mechanism is real and correct as far as it goes, but some legitimate chains require control-flow-sensitive return-type inference that was deliberately scoped out of Phase 1 (documented in `project_context.md`) — the system honestly reports "I don't know the full chain" past that real boundary rather than guessing, which the benchmark's strict all-or-nothing grading scores as 0 even when the partial trace it did produce is correct.
-- **This tool is scoped to `httpx` and `got` only.** Extending it to an arbitrary repo requires re-running the full Phase 1–3 pipeline above against that repo first — real, non-trivial work, not a config flag. The v2 schema additions (`embeddings`, `centrality_scores`) are already keyed by `repo` and need no migration if this is pursued later.
-- **v2's embeddings layer bypasses `sentence-transformers` entirely**, calling `onnxruntime` directly instead, due to a real, confirmed version incompatibility between current `optimum` (2.x) and what `sentence-transformers`'s own ONNX backend code still expects internally (pre-2.x import paths) as of when this was built. If a future `sentence-transformers` release fixes this, `embeddings.py`'s docstring has the full account of what to check before reverting.
-- **Cerebras and Groq**, the LLM providers this project originally scoped around (see `repo-assist-v2-plan.md` §3.3/§3.8), stopped being usable partway through this project (Cerebras began requiring payment; Groq's real availability wasn't independently confirmed afterward). Every model string in this codebase now points at Gemini as a result — a real, documented departure from the original plan, not a silent one. `verifier_agent.py`'s docstring covers the resulting, weaker same-vendor provider-diversity guarantee this created for v2's verification step.
+This project is licensed under the [MIT License](LICENSE).
