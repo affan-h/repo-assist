@@ -135,3 +135,24 @@ def test_single_shot_uses_retrieved_context_without_tools(ingested_repo, monkeyp
                                       model=FunctionModel(respond)))
     assert "Retrieved evidence" in prompts[0] and "_transport_for_url" in prompts[0]
     assert result.abstained and result.trace == [] and result.evidence
+
+
+def test_read_thread_replaces_search_preview(ingested_repo, monkeypatch):
+    monkeypatch.setattr(embeddings, "_embedder", HashEmbedder())
+    monkeypatch.setattr(agent, "HISTORY_PREVIEW_CHARS", 40)  # preview holds the subject, not the body
+    calls = iter([ToolCallPart("search_history", {"query": "default timeout"}), None])
+
+    def respond(messages, info):
+        nxt = next(calls, None)
+        if nxt is not None:
+            return ModelResponse(parts=[nxt])
+        commit_ref = next(p.content.split("]")[0].lstrip("[") for m in messages for p in m.parts
+                          if isinstance(p, ToolReturnPart) and p.tool_name == "search_history")
+        if not any(isinstance(p, ToolReturnPart) and p.tool_name == "read_thread" for m in messages for p in m.parts):
+            return ModelResponse(parts=[ToolCallPart("read_thread", {"ref": commit_ref})])
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {
+            "answer": "Fail fast [1].", "citations": [commit_ref], "abstained": False})])
+
+    result = asyncio.run(agent.answer(ingested_repo, "why 5s?", model=FunctionModel(respond)))
+    text = result.evidence[result.citations[0].ref].text
+    assert text.count("Add client with default timeout") == 1

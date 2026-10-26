@@ -29,6 +29,7 @@ MAX_READ_LINES = 150
 SEARCH_RESULTS = 8
 SNIPPET_LINES = 30
 THREAD_PAGE_CHARS = 6000
+HISTORY_PREVIEW_CHARS = 700
 AGENT_LIMITS = UsageLimits(request_limit=12, tool_calls_limit=15)
 
 
@@ -197,7 +198,7 @@ def _format_code_hit(hit: retrieval.Hit) -> str:
 
 def _format_history_hit(hit: retrieval.Hit) -> str:
     date = (hit.created_at or "")[:10]
-    body = hit.text[:700] + ("..." if len(hit.text) > 700 else "")
+    body = hit.text[:HISTORY_PREVIEW_CHARS] + ("..." if len(hit.text) > HISTORY_PREVIEW_CHARS else "")
     return f"[{hit.ref}] {date} {hit.title or ''}\n{body}"
 
 
@@ -220,7 +221,7 @@ def search_history(ctx: RunContext[Deps], query: str) -> str:
     started = time.monotonic()
     hits = retrieval.search(ctx.deps.repo_id, query, retrieval.HISTORY_KINDS, k=SEARCH_RESULTS)
     for hit in hits:
-        shown = Evidence(ref=hit.ref, kind=hit.kind, text=hit.text[:700], title=hit.title)
+        shown = Evidence(ref=hit.ref, kind=hit.kind, text=hit.text[:HISTORY_PREVIEW_CHARS], title=hit.title)
         ctx.deps.add(shown)
     ctx.deps.record(ctx, "search_history", {"query": query}, f"{len(hits)} results", [h.ref for h in hits], started)
     return "\n\n".join(_format_history_hit(h) for h in hits) or "No results."
@@ -239,10 +240,12 @@ def read_thread(ctx: RunContext[Deps], ref: str, offset: int = 0) -> str:
     page = hit.text[offset:offset + THREAD_PAGE_CHARS]
     existing = ctx.deps.evidence.get(hit.ref)
     seen = existing.text if existing and existing.kind == hit.kind else ""
-    if not seen:
+    if not seen or seen in page:  # first read, or replacing a search-result preview
         text = page
+    elif page in seen:
+        text = seen
     else:  # accumulate every page the model has read, for citation snippets and grading
-        text = seen if page in seen else f"{seen}\n...\n{page}"
+        text = f"{seen}\n...\n{page}"
     ctx.deps.evidence[hit.ref] = Evidence(ref=hit.ref, kind=hit.kind, title=hit.title, text=text)
     end = offset + len(page)
     ctx.deps.record(ctx, "read_thread", {"ref": ref, "offset": offset},
