@@ -173,11 +173,12 @@ curl http://localhost:8000/repos/click/status
             ▼                                                   ▼
 ┌───────────────────────────────┐               ┌───────────────────────────────┐
 │     Code & History Graph      │               │     Semantic & Doc Indices    │
-│ • Tree-sitter AST symbols     │               │ • Local BGE ONNX embeddings   │
-│ • CALLS & EXTENDS hierarchies │               │ • Markdown doc chunks (BM25)  │
-│ • Git commit churn & authors  │               │ • GitHub PR discussions &     │
-│ • Local Ollama symbol summary │               │   release notes               │
-└───────────────┬───────────────┘               └───────────────┬───────────────┘
+│ • Tree-sitter AST symbols     │               │ • Qdrant Vector DB (HNSW ANN) │
+│ • CALLS & EXTENDS hierarchies │               │ • EmbeddingGemma ONNX vectors │
+│ • Git commit churn & authors  │               │ • Markdown doc chunks (BM25)  │
+│ • Local Ollama symbol summary │               │ • GitHub PR discussions &     │
+└───────────────┬───────────────┘               │   release notes               │
+                │                               └───────────────┬───────────────┘
                 │                                               │
                 └──────────────────────┬────────────────────────┘
                                        ▼
@@ -189,6 +190,17 @@ curl http://localhost:8000/repos/click/status
                └──────────────────────────────────────────────┘
 ```
 
+### Vector Database Architecture (Qdrant)
+
+The semantic retrieval layer (`src/vector_store.py`) is powered by **Qdrant**:
+- **Dual Operating Modes**:
+  - **Embedded Local Mode (Default)**: Runs in-process using Qdrant's Rust storage engine directly persisting to `DATA_DIR / "qdrant"`. Zero external daemons or services required.
+  - **Client-Server Mode**: Connects to an external Qdrant cluster if `QDRANT_URL` is set in `.env` (e.g. `http://localhost:6333`).
+- **HNSW Indexing**: Approximate Nearest Neighbor (ANN) search replacing legacy $O(N)$ linear scans, configured with `on_disk=True` for low memory footprint (< 100 MB).
+- **Multi-Tenant Filtered Search**: Traversal enforces `repo == target_repo` directly within the HNSW index, guaranteeing complete tenant isolation with zero cross-repository leakage.
+- **Deterministic Point IDs**: Uses UUID5 hashes computed from composite keys (`{repo}::{source_type}::{source_id}`) for idempotent, reproducible upserts.
+- **Graceful Fallback**: Automatically falls back to SQLite linear scans if Qdrant has not yet been indexed for a given repository.
+
 ### Ingestion Pipeline
 When a repository is added, it progresses through an 8-stage pipeline:
 1. `QUEUED` → Scheduled in background worker.
@@ -197,7 +209,7 @@ When a repository is added, it progresses through an 8-stage pipeline:
 4. `GRAPH_BUILT` → Call-graph edges, typed calls, inheritance hierarchies, and PageRank centrality.
 5. `HISTORY_ATTACHED` → Git commit churn mined via PyDriller, PR metadata, and documentation chunks.
 6. `SUMMARIZED` → Symbol-level purpose and delegation summaries generated via local Ollama.
-7. `INDEXED` → Dense vector embeddings generated via ONNX runtime (`BAAI/bge-small-en-v1.5`).
+7. `INDEXED` → Dense vector embeddings generated via raw ONNX runtime (`EmbeddingGemma-300M`) and indexed into Qdrant vector database (`src/data/qdrant`).
 8. `READY` → Open for queries.
 
 ---

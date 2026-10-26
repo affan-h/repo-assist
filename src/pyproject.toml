@@ -25,6 +25,7 @@ dependencies = [
     "ollama",
     "networkx",
     "pathspec",
+    "qdrant-client",
 ]
 
 [project.scripts]
@@ -69,6 +70,7 @@ py-modules = [
     "embeddings",
     "build_embeddings_index",
     "backfill_missing_docs",
+    "vector_store",
 ]
 
 [tool.setuptools.packages.find]

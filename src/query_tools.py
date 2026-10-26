@@ -600,6 +600,14 @@ def search_docs(repo: str, query: str, limit: int = 5, widen_threshold: float = 
     return top
 
 
+def search_semantic_docs(repo: str, query: str, top_k: int = 5) -> list[dict]:
+    """Semantic vector search across indexed symbols, PRs, and documentation chunks.
+    Powered by Qdrant vector database (with fallback to SQLite embeddings).
+    Returns list of hit dicts with {source_type, source_id, score, text}."""
+    from embeddings import search_semantic
+    return search_semantic(DB_PATH, repo, query, top_k=top_k)
+
+
 def search_discussions(repo: str, query: str, limit: int = 5) -> list[dict]:
     """Direct, PR-INDEPENDENT search over discussions_index (bulk-indexed
     in Phase 2). Same IDF-weighted, title-weighted scoring principle as

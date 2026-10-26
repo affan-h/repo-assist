@@ -84,10 +84,11 @@ def execute(repo: str, question: str, focus_notes: str = "") -> dict:
                                 "AND qualified_name=? AND start_line=?",
                                 (repo, file_path, qname, int(start_line)),
                             ).fetchone()
-                    if row:
+                    summary_text = row[0] if row else hit.get("text", "")
+                    if summary_text:
                         semantic_results.append({
                             "source_type": "summary", "source_id": src_id,
-                            "score": score, "text": row[0],
+                            "score": score, "text": summary_text,
                         })
 
                 elif src_type == "pr":
@@ -99,9 +100,13 @@ def execute(repo: str, question: str, focus_notes: str = "") -> dict:
                     ).fetchone()
                     if row:
                         body = (row[1] or "")[:MAX_EVIDENCE_CHARS]
+                        pr_text = f"{row[0]} - {body}"
+                    else:
+                        pr_text = hit.get("text", "")[:MAX_EVIDENCE_CHARS]
+                    if pr_text:
                         semantic_results.append({
                             "source_type": "pr", "source_id": pr_num,
-                            "score": score, "text": f"{row[0]} - {body}",
+                            "score": score, "text": pr_text,
                         })
                 elif src_type == "doc_chunk":
                     # source_id format from build_embeddings_index.py:
@@ -122,9 +127,13 @@ def execute(repo: str, question: str, focus_notes: str = "") -> dict:
                             (repo, file_path, int(base_chunk_part)),
                         ).fetchone()
                     if row:
+                        doc_text = f"[{row[0]}] {row[1][:MAX_EVIDENCE_CHARS]}"
+                    else:
+                        doc_text = hit.get("text", "")[:MAX_EVIDENCE_CHARS]
+                    if doc_text:
                         semantic_results.append({
                             "source_type": "doc_chunk", "source_id": src_id,
-                            "score": score, "text": f"[{row[0]}] {row[1][:MAX_EVIDENCE_CHARS]}",
+                            "score": score, "text": doc_text,
                         })
                 # other source_types (issue, discussion) intentionally not yet
                 # wired here -- build_embeddings_index.py doesn't index them

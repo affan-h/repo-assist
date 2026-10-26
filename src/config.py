@@ -13,6 +13,10 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 # Canonical absolute path string to the SQLite code graph database
 DB_PATH = str(DATA_DIR / "code_graph.db")
 
+# Vector database configuration (Qdrant)
+QDRANT_PATH = str(DATA_DIR / "qdrant")
+QDRANT_URL = os.environ.get("QDRANT_URL")
+
 # Bounded history fetching policy (scope guards against unbounded API calls/mining)
 MAX_PRS = 300
 MAX_ISSUES = 300

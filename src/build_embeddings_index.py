@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 
 from config import DB_PATH
 from embeddings import compute_embedding, get_embedding_model, MODEL_NAME
+from vector_store import upsert_points, count_vectors, ensure_collection
 
 CHUNK_SIZE = 400
 CHUNK_OVERLAP = 50
@@ -61,8 +62,17 @@ def _insert_vector(conn, repo, source_type, source_id, vector):
     """, (repo, source_type, source_id, vector.tobytes(), MODEL_NAME, now))
 
 
-def build_index():
+def build_index(target_repo: str | None = None):
     get_embedding_model()  # load once up front, real load-time cost surfaced immediately not on first use
+    ensure_collection()
+    qdrant_points: list[dict] = []
+
+    def _flush_qdrant():
+        nonlocal qdrant_points
+        if qdrant_points:
+            upsert_points(qdrant_points)
+            qdrant_points = []
+
     with sqlite3.connect(DB_PATH) as conn:
         init_embeddings_table(conn)
         cursor = conn.cursor()
@@ -81,7 +91,10 @@ def build_index():
         # hit once (see project_context.md). Fixed: source_id now encodes
         # the full real key so two distinct summaries can never collide.
         print("\n--- Indexing symbol summaries ---")
-        cursor.execute("SELECT repo, file_path, qualified_name, start_line, summary FROM summaries")
+        if target_repo:
+            cursor.execute("SELECT repo, file_path, qualified_name, start_line, summary FROM summaries WHERE repo = ?", (target_repo,))
+        else:
+            cursor.execute("SELECT repo, file_path, qualified_name, start_line, summary FROM summaries")
         rows = cursor.fetchall()
         indexed = 0
         for repo, file_path, name, start_line, summary in rows:
@@ -90,14 +103,33 @@ def build_index():
             vector = compute_embedding(summary, is_query=False)
             source_id = f"{file_path}::{name}::{start_line}"
             _insert_vector(conn, repo, "summary", source_id, vector)
+            qdrant_points.append({
+                "repo": repo,
+                "source_type": "summary",
+                "source_id": source_id,
+                "vector": vector,
+                "text": summary,
+                "metadata": {
+                    "file_path": file_path,
+                    "qualified_name": name,
+                    "start_line": start_line,
+                },
+                "model_name": MODEL_NAME,
+            })
+            if len(qdrant_points) >= 100:
+                _flush_qdrant()
             indexed += 1
+        _flush_qdrant()
         conn.commit()
         print(f"Indexed {indexed}/{len(rows)} summaries (skipped rows with empty summary).")
 
         # 2. PRs (pr_cache) -- chunked, since bodies can run long
         print("\n--- Indexing PRs ---")
         try:
-            cursor.execute("SELECT repo, pr_number, title, body FROM pr_cache")
+            if target_repo:
+                cursor.execute("SELECT repo, pr_number, title, body FROM pr_cache WHERE repo = ?", (target_repo,))
+            else:
+                cursor.execute("SELECT repo, pr_number, title, body FROM pr_cache")
             pr_rows = cursor.fetchall()
             chunk_count = 0
             for repo, pr_num, title, body in pr_rows:
@@ -106,7 +138,23 @@ def build_index():
                     source_id = f"PR#{pr_num}_chunk{idx}"
                     vector = compute_embedding(chunk, is_query=False)
                     _insert_vector(conn, repo, "pr", source_id, vector)
+                    qdrant_points.append({
+                        "repo": repo,
+                        "source_type": "pr",
+                        "source_id": source_id,
+                        "vector": vector,
+                        "text": chunk,
+                        "metadata": {
+                            "pr_number": pr_num,
+                            "title": title,
+                            "chunk_index": idx,
+                        },
+                        "model_name": MODEL_NAME,
+                    })
+                    if len(qdrant_points) >= 100:
+                        _flush_qdrant()
                     chunk_count += 1
+            _flush_qdrant()
             conn.commit()
             print(f"Indexed {len(pr_rows)} PRs into {chunk_count} chunks.")
         except sqlite3.OperationalError as e:
@@ -126,7 +174,10 @@ def build_index():
         # real, fully-embedded chunks instead of one truncated one.
         print("\n--- Indexing docs ---")
         try:
-            cursor.execute("SELECT repo, file_path, chunk_index, heading, content FROM docs")
+            if target_repo:
+                cursor.execute("SELECT repo, file_path, chunk_index, heading, content FROM docs WHERE repo = ?", (target_repo,))
+            else:
+                cursor.execute("SELECT repo, file_path, chunk_index, heading, content FROM docs")
             doc_rows = cursor.fetchall()
             doc_indexed = 0
             oversized_rows = 0
@@ -143,7 +194,24 @@ def build_index():
                         source_id += f".{sub_idx}"
                     vector = compute_embedding(sub_text, is_query=False)
                     _insert_vector(conn, repo, "doc_chunk", source_id, vector)
+                    qdrant_points.append({
+                        "repo": repo,
+                        "source_type": "doc_chunk",
+                        "source_id": source_id,
+                        "vector": vector,
+                        "text": sub_text,
+                        "metadata": {
+                            "file_path": file_path,
+                            "heading": heading or "",
+                            "chunk_index": chunk_index,
+                            "sub_chunk_index": sub_idx,
+                        },
+                        "model_name": MODEL_NAME,
+                    })
+                    if len(qdrant_points) >= 100:
+                        _flush_qdrant()
                     doc_indexed += 1
+            _flush_qdrant()
             conn.commit()
             print(f"Indexed {len(doc_rows)} doc rows into {doc_indexed} chunks "
                   f"({oversized_rows} row(s) were oversized and split further).")
@@ -151,10 +219,19 @@ def build_index():
             print(f"Could not index docs (docs table missing/empty?): {e}")
 
         print("\nPhase A indexing complete.")
-        cursor.execute("SELECT source_type, COUNT(*) FROM embeddings GROUP BY source_type")
+        where_clause = "WHERE repo = ?" if target_repo else ""
+        params = (target_repo,) if target_repo else ()
+        cursor.execute(f"SELECT source_type, COUNT(*) FROM embeddings {where_clause} GROUP BY source_type", params)
         for source_type, count in cursor.fetchall():
-            print(f"  {source_type}: {count} vectors")
+            print(f"  [SQLite] {source_type}: {count} vectors")
+
+        total_qdrant = count_vectors(target_repo)
+        print(f"  [Qdrant] Total vectors indexed in vector store: {total_qdrant}")
 
 
 if __name__ == "__main__":
-    build_index()
+    import argparse
+    parser = argparse.ArgumentParser(description="Build embeddings index in Qdrant and SQLite")
+    parser.add_argument("--repo", help="Optional specific repo to index (default: all repos)")
+    args = parser.parse_args()
+    build_index(target_repo=args.repo)

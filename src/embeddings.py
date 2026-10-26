@@ -157,7 +157,10 @@ def get_embedding_model():
             hf_hub_download(MODEL_NAME, subfolder="onnx", filename="model.onnx_data")
 
             _session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
-            _tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+            try:
+                _tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+            except Exception:
+                _tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=False)
         except Exception as e:
             raise RuntimeError(
                 f"Failed to load {MODEL_NAME} via raw ONNX Runtime. Most likely either "
@@ -225,16 +228,34 @@ def cosine_similarity(vec_a: np.ndarray, vec_b: np.ndarray) -> float:
 
 
 def search_semantic(db_path: str, repo: str, query: str, top_k: int = 5) -> list[dict[str, Any]]:
-    """Brute-force NumPy cosine similarity over all stored vectors for the
-    given repo (§3.1's chosen approach -- fast enough at this project's
-    real scale of ~1,500-2,000 vectors, no ANN index needed)."""
+    """Performs semantic search for the given repo.
+
+    Tries Qdrant vector database first (HNSW indexed ANN search with multi-tenant filtering).
+    Falls back to brute-force NumPy cosine similarity over SQLite embeddings if Qdrant
+    is empty or unavailable.
+    """
     query_vector = compute_embedding(query, is_query=True)
 
-    with sqlite3.connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT source_type, source_id, vector, model_name FROM embeddings WHERE repo = ?",
-            (repo,),
-        ).fetchall()
+    # 1. Primary: Qdrant Vector Database (HNSW graph with repo payload filter)
+    try:
+        from vector_store import search_semantic as qdrant_search_semantic
+        qdrant_results = qdrant_search_semantic(query_vector=query_vector, repo=repo, top_k=top_k)
+        if qdrant_results:
+            return qdrant_results
+    except Exception as e:
+        # Graceful fallback to SQLite on any vector store error
+        pass
+
+    # 2. Fallback: SQLite Brute-Force Linear Scan
+    try:
+        with sqlite3.connect(db_path) as conn:
+            rows = conn.execute(
+                "SELECT source_type, source_id, vector, model_name FROM embeddings WHERE repo = ?",
+                (repo,),
+            ).fetchall()
+    except sqlite3.OperationalError:
+        # Table 'embeddings' may not exist yet
+        return []
 
     if not rows:
         return []
@@ -259,3 +280,4 @@ def search_semantic(db_path: str, repo: str, query: str, top_k: int = 5) -> list
 
     results.sort(key=lambda x: -x["score"])
     return results[:top_k]
+
