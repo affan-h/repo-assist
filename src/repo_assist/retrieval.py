@@ -20,7 +20,7 @@ from repo_assist.config import get_settings
 from repo_assist.embeddings import Embedder, get_embedder
 
 CODE_KINDS = ("code", "doc")
-HISTORY_KINDS = ("commit", "issue", "pr", "discussion")
+HISTORY_KINDS = ("commit", "issue", "pr", "discussion", "release")
 RRF_K = 60            # standard reciprocal-rank-fusion constant
 CANDIDATES = 50       # per-retriever candidates fed into fusion
 

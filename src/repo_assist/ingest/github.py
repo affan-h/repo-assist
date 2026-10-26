@@ -1,4 +1,4 @@
-"""Fetch issues, pull requests and discussions (with top comments) via the GitHub GraphQL API.
+"""Fetch issues, pull requests, discussions (with comments) and releases via the GitHub GraphQL API.
 
 Threads created after the indexed commit are skipped, so the history index
 matches the code snapshot (and evaluation can't benefit from future knowledge).
@@ -13,15 +13,17 @@ import httpx
 from repo_assist.store import Chunk
 
 GRAPHQL_URL = "https://api.github.com/graphql"
-MAX_THREAD_CHARS = 12_000
-COMMENTS_PER_THREAD = 10
+MAX_THREAD_CHARS = 30_000
+COMMENTS_PER_THREAD = 30
 
+_COMMENTS = f"comments(first: {COMMENTS_PER_THREAD}) {{ nodes {{ body author {{ login }} }} }}"
 _FIELDS = {
-    "issues": "number title body createdAt url author { login }",
-    "pullRequests": "number title body createdAt url mergedAt author { login }",
-    "discussions": "number title body createdAt url author { login } answer { body author { login } }",
+    "issues": f"number title body createdAt author {{ login }} {_COMMENTS}",
+    "pullRequests": f"number title body createdAt mergedAt author {{ login }} {_COMMENTS}",
+    "discussions": f"number title body createdAt author {{ login }} answer {{ body author {{ login }} }} {_COMMENTS}",
+    "releases": "tagName name description createdAt",
 }
-_KIND = {"issues": "issue", "pullRequests": "pr", "discussions": "discussion"}
+_KIND = {"issues": "issue", "pullRequests": "pr", "discussions": "discussion", "releases": "release"}
 _REF_PREFIX = {"issue": "issue#", "pr": "PR#", "discussion": "discussion#"}
 
 _QUERY = """
@@ -29,7 +31,7 @@ query($owner: String!, $name: String!, $cursor: String, $pageSize: Int!) {
   repository(owner: $owner, name: $name) {
     %(connection)s(first: $pageSize, after: $cursor, orderBy: {field: CREATED_AT, direction: DESC}) {
       pageInfo { hasNextPage endCursor }
-      nodes { %(fields)s comments(first: %(comments)d) { nodes { body author { login } } } }
+      nodes { %(fields)s }
     }
   }
 }
@@ -46,7 +48,7 @@ def fetch_thread_chunks(owner: str, name: str, token: str, created_before: str, 
                         progress: Callable[[str], None] = lambda _: None) -> list[Chunk]:
     chunks: list[Chunk] = []
     with httpx.Client(headers={"Authorization": f"Bearer {token}"}, timeout=60) as client:
-        for connection in ("issues", "pullRequests", "discussions"):
+        for connection in ("releases", "issues", "pullRequests", "discussions"):
             remaining = max_threads - len(chunks)
             if remaining <= 0:
                 break
@@ -58,8 +60,8 @@ def fetch_thread_chunks(owner: str, name: str, token: str, created_before: str, 
 
 def _fetch_connection(client: httpx.Client, owner: str, name: str, connection: str,
                       created_before: str, limit: int) -> list[Chunk]:
-    query = _QUERY % {"connection": connection, "fields": _FIELDS[connection], "comments": COMMENTS_PER_THREAD}
-    chunks, cursor, page_size = [], None, 50
+    query = _QUERY % {"connection": connection, "fields": _FIELDS[connection]}
+    chunks, cursor, page_size = [], None, 25
     while len(chunks) < limit:
         data = _graphql(client, query, {"owner": owner, "name": name, "cursor": cursor, "pageSize": page_size})
         if data is None:  # page too heavy for GitHub's timeout: retry it smaller
@@ -70,7 +72,8 @@ def _fetch_connection(client: httpx.Client, owner: str, name: str, connection: s
         page = data["repository"][connection]
         for node in page["nodes"]:
             if node["createdAt"] <= created_before:
-                chunks.append(_thread_chunk(_KIND[connection], node))
+                kind = _KIND[connection]
+                chunks.append(_release_chunk(node) if kind == "release" else _thread_chunk(kind, node))
         if not page["pageInfo"]["hasNextPage"]:
             break
         cursor = page["pageInfo"]["endCursor"]
@@ -119,4 +122,14 @@ def _thread_chunk(kind: str, node: dict) -> Chunk:
     return Chunk(
         kind=kind, ref=thread_ref(kind, node["number"]), title=title, text=text,
         created_at=node["createdAt"], embed_text=f"{title}\n{body}"[:2000],
+    )
+
+
+def _release_chunk(node: dict) -> Chunk:
+    tag, title = node["tagName"], node["name"] or node["tagName"]
+    body = _clean(node["description"])
+    return Chunk(
+        kind="release", ref=f"release:{tag}", title=title, created_at=node["createdAt"],
+        text=f"{title}\nRelease {tag} on {node['createdAt'][:10]}\n\n{body}"[:MAX_THREAD_CHARS],
+        embed_text=f"Release {title}\n{body}"[:2000],
     )

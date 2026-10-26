@@ -36,11 +36,11 @@ CREATE TABLE IF NOT EXISTS repos (
 
 -- One row per retrievable unit of evidence. `ref` is the citation id shown to
 -- the model and the user: "path:start-end" for code/docs, "PR#12", "issue#3",
--- "discussion#7", "commit:abc1234" for history.
+-- "discussion#7", "commit:abc1234", "release:v1.0" for history.
 CREATE TABLE IF NOT EXISTS chunks (
     id         INTEGER PRIMARY KEY,
     repo_id    TEXT NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
-    kind       TEXT NOT NULL,           -- code | doc | commit | issue | pr | discussion
+    kind       TEXT NOT NULL,           -- code | doc | commit | issue | pr | discussion | release
     ref        TEXT NOT NULL,
     path       TEXT,
     start_line INTEGER,
