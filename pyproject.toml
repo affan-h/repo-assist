@@ -1,74 +1,35 @@
 [project]
 name = "repo-assist"
-version = "0.2.0"
-description = "Grounded codebase intelligence powered by AST graphs, git history, docs, and multi-agent retrieval."
-requires-python = ">=3.10"
+version = "1.0.0"
+description = "Agentic RAG over GitHub repositories: grounded, cited answers about code, docs, and project history."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
 dependencies = [
-    "pydantic-ai",
-    "requests",
-    "onnxruntime",
-    "huggingface_hub",
-    "transformers",
-    "numpy",
-    "rustworkx",
-    "fastapi",
-    "uvicorn",
-    "pydriller",
-    "tree-sitter",
-    "tree-sitter-python",
-    "tree-sitter-typescript",
-    "ollama",
-    "networkx",
-    "pathspec",
-    "qdrant-client",
+    "pydantic-ai-slim[google]>=1.0",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "httpx>=0.27",
+    "numpy>=1.26",
+    "fastembed>=0.7",
+    "tree-sitter>=0.25",
+    "tree-sitter-python>=0.25",
+    "tree-sitter-typescript>=0.23",
+    "python-dotenv>=1.0",
 ]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
 
 [project.scripts]
-repo-assist = "cli:main"
+repo-assist = "repo_assist.cli:main"
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-py-modules = [
-    "api",
-    "cli",
-    "config",
-    "router",
-    "synthesizer",
-    "query_tools",
-    "fetch_pr",
-    "fetch_issue",
-    "fetch_discussion",
-    "fetch_got_releases",
-    "link_pr_to_discussions",
-    "build_docs_table",
-    "build_full_graph",
-    "extract_symbols",
-    "resolve_imports",
-    "resolve_calls",
-    "resolve_calls_typed",
-    "resolve_calls_typed_ts",
-    "resolve_inheritance",
-    "rank_symbols",
-    "mine_history",
-    "index_discussions",
-    "compute_churn",
-    "compute_complexity",
-    "compute_centrality",
-    "compute_risk_scores",
-    "graph_schema",
-    "summarize_symbols",
-    # v2 additions
-    "orchestrator",
-    "embeddings",
-    "build_embeddings_index",
-    "backfill_missing_docs",
-    "vector_store",
-]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["agents*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

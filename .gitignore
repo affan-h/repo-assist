@@ -1,19 +1,21 @@
-data/
-*.db
+# secrets
 .env
+
+# python
+.venv/
 venv/
 __pycache__/
 *.pyc
-results*.json
-mini_questions.json
-venv/
-.venv/
-repos/
 *.egg-info/
-.DS_Store
+.pytest_cache/
 
-# Local pipeline artifacts — not source
-repos/
-src/repos
-src/data/
+# runtime data (database, clones, model cache)
 data/
+legacy-data/
+repos/
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+
+.DS_Store
