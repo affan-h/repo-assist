@@ -44,9 +44,11 @@ def _ask(args) -> int:
     from repo_assist import agent
 
     result = agent.answer_sync(args.repo, args.question, mode=args.mode, model=args.model,
-                               on_event=_print_event if args.verbose or args.mode == "agent" else None)
+                               on_event=_print_event if args.verbose or args.mode != "single_shot" else None)
     print()
     print(textwrap.indent(result.answer, "  "))
+    for q in result.quotes:
+        print(f'\n  > "{q["quote"]}"  ({q["ref"]})')
     if result.citations:
         print("\nSources:")
         for i, c in enumerate(result.citations, start=1):
@@ -81,7 +83,8 @@ def main(argv: list[str] | None = None) -> None:
     p = sub.add_parser("ask", help="Ask a question about an ingested repository")
     p.add_argument("repo", help="Repository id, e.g. httpx")
     p.add_argument("question")
-    p.add_argument("--mode", choices=["agent", "single_shot"], default="agent")
+    p.add_argument("--mode", choices=["agent", "single_shot", "agent_bm25", "agent_noindex"], default="agent",
+                   help="agent (default); single_shot baseline; agent_bm25 / agent_noindex ablations")
     p.add_argument("--model", help="pydantic-ai model string, e.g. google:gemini-3.5-flash")
     p.add_argument("-v", "--verbose", action="store_true")
     p.set_defaults(func=_ask)

@@ -102,10 +102,15 @@ def ingest(repo_id: str, ref: str | None = None, *, include_history: bool = True
 
         embedder = embedder or get_embedder()
         stage(f"Embedding {len(chunks)} chunks")
-        vectors = embed_with_cache(
+        vectors = list(embed_with_cache(
             conn, embedder, [c.embed_text or c.text for c in chunks],
             progress=lambda done, total: stage(f"Embedding chunks ({done}/{total} new)"),
-        )
+        ))
+
+        # Comment-level passages of long threads: keyword-searchable, not embedded.
+        passages = [p for c in chunks for p in github.split_passages(c)]
+        chunks += passages
+        vectors += [None] * len(passages)
 
         stage("Writing index")
         stats = dict(Counter(c.kind for c in chunks))

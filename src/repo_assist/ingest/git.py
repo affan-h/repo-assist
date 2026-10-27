@@ -37,13 +37,13 @@ class Checkout:
 def clone(owner: str, name: str, dest: Path, ref: str | None = None) -> Checkout:
     """Clone (or update) a GitHub repo and check out `ref` (default branch head if None).
 
-    Uses a blobless clone: full commit history (needed for the history index)
-    without downloading every historical file version.
+    A full clone: line-level history (`git log -L`, used to trace code back to the
+    commits and PRs that shaped it) needs every historical version of a file.
     """
     if not (dest / ".git").exists():
         dest.parent.mkdir(parents=True, exist_ok=True)
         result = subprocess.run(
-            ["git", "clone", "--quiet", "--filter=blob:none", f"https://github.com/{owner}/{name}.git", str(dest)],
+            ["git", "clone", "--quiet", f"https://github.com/{owner}/{name}.git", str(dest)],
             capture_output=True, text=True, check=False,
         )
         if result.returncode != 0:
@@ -68,7 +68,7 @@ _FIELD = "\x1f"
 
 def commit_chunks(repo_dir: Path, max_commits: int) -> list[Chunk]:
     """One chunk per non-merge commit reachable from HEAD: message plus files touched."""
-    # --no-renames: rename detection would lazily download old blobs in a blobless clone.
+    # --no-renames: rename detection is slow on long histories and not needed here.
     log = _git(
         repo_dir, "log", "--no-merges", "--no-renames", f"-n{max_commits}", "--name-only",
         f"--format={_RECORD}%H{_FIELD}%an{_FIELD}%aI{_FIELD}%s{_FIELD}%b{_FIELD}",
@@ -85,3 +85,47 @@ def commit_chunks(repo_dir: Path, max_commits: int) -> list[Chunk]:
             embed_text=f"{subject}\n{body.strip()}"[:2000] or subject,
         ))
     return chunks
+
+
+_LOG_FORMAT = f"{_RECORD}%H{_FIELD}%aI{_FIELD}%s{_FIELD}%b"
+_ISSUE_REF = re.compile(r"(?:\(|\s|^)#(\d+)\b")
+
+
+@dataclass
+class Commit:
+    sha: str
+    date: str
+    subject: str
+    body: str
+
+    @property
+    def ref(self) -> str:
+        return f"commit:{self.sha[:10]}"
+
+    @property
+    def message(self) -> str:
+        return f"{self.subject}\n\n{self.body}".strip()
+
+    def linked_numbers(self) -> list[int]:
+        """Issue/PR numbers mentioned in the message: 'Fix retries (#991)', 'Fixes #417'."""
+        return sorted({int(n) for n in _ISSUE_REF.findall(self.message)})
+
+
+def _parse_log(output: str) -> list[Commit]:
+    commits = []
+    for record in output.split(_RECORD)[1:]:
+        sha, date, subject, body = (record.split(_FIELD) + ["", "", "", ""])[:4]
+        commits.append(Commit(sha.strip(), date.strip(), subject.strip(), body.strip()))
+    return commits
+
+
+def search_commits(repo_dir: Path, pattern: str, limit: int = 15) -> list[Commit]:
+    """Commits reachable from HEAD whose message matches `pattern` (case-insensitive regex)."""
+    return _parse_log(_git(repo_dir, "log", "--no-merges", "-i", "-E", f"--grep={pattern}", f"-n{limit}",
+                           f"--format={_LOG_FORMAT}"))
+
+
+def line_history(repo_dir: Path, path: str, start: int, end: int, limit: int = 10) -> list[Commit]:
+    """Commits that changed lines start..end of `path`, newest first (git log -L)."""
+    return _parse_log(_git(repo_dir, "log", f"-L{start},{end}:{path}", "-s", f"-n{limit}",
+                           f"--format={_LOG_FORMAT}"))

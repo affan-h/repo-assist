@@ -46,7 +46,9 @@ class Hit:
     title: str | None
     text: str
     created_at: str | None
+    parent: str | None = None
     score: float = 0.0
+    passage_offset: int | None = None  # history hits found via a passage: where in the thread it is
 
 
 # ---------------------------------------------------------------------------
@@ -159,17 +161,52 @@ def _load_hits(conn: sqlite3.Connection, ranked: list[tuple[int, float]]) -> lis
         return []
     ids = [i for i, _ in ranked]
     rows = conn.execute(
-        f"""SELECT id, ref, kind, path, start_line, end_line, symbol, title, text, created_at
+        f"""SELECT id, ref, kind, path, start_line, end_line, symbol, title, text, created_at, parent
             FROM chunks WHERE id IN ({','.join('?' * len(ids))})""", ids,
     ).fetchall()
     by_id = {r["id"]: r for r in rows}
     return [Hit(**dict(by_id[i]), score=s) for i, s in ranked if i in by_id]
 
 
+def search_history(repo_id: str, query: str, k: int = 8, mode: SearchMode = "hybrid",
+                   embedder: Embedder | None = None, conn: sqlite3.Connection | None = None) -> list[Hit]:
+    """Search threads, commits and releases, matching keywords at passage (comment) level.
+
+    Returns one hit per thread, best first. When a passage matched, the hit's text is
+    that passage and `passage_offset` says where it sits in the thread.
+    """
+    own_conn = conn is None
+    conn = conn or store.connect()
+    try:
+        candidates = search(repo_id, query, (*HISTORY_KINDS, "passage"), k=k * 4, mode=mode,
+                            embedder=embedder, conn=conn)
+        results: dict[str, Hit] = {}
+        for hit in candidates:
+            parent_ref = hit.parent or hit.ref
+            if parent_ref in results:
+                continue
+            if hit.kind == "passage":
+                thread = conn.execute(
+                    "SELECT kind, title, created_at FROM chunks WHERE repo_id = ? AND ref = ?", (repo_id, parent_ref)
+                ).fetchone()
+                if thread is None:
+                    continue
+                hit = Hit(id=hit.id, ref=parent_ref, kind=thread["kind"], path=None, start_line=None, end_line=None,
+                          symbol=None, title=thread["title"], text=hit.text, created_at=thread["created_at"],
+                          score=hit.score, passage_offset=int(hit.ref.rsplit("@", 1)[1]))
+            results[parent_ref] = hit
+            if len(results) == k:
+                break
+        return list(results.values())
+    finally:
+        if own_conn:
+            conn.close()
+
+
 def get_chunk(repo_id: str, ref: str) -> Hit | None:
     with store.session() as conn:
         row = conn.execute(
-            """SELECT id, ref, kind, path, start_line, end_line, symbol, title, text, created_at
+            """SELECT id, ref, kind, path, start_line, end_line, symbol, title, text, created_at, parent
                FROM chunks WHERE repo_id = ? AND lower(ref) = lower(?)""", (repo_id, ref),
         ).fetchone()
     return Hit(**dict(row)) if row else None

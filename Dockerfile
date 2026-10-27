@@ -30,8 +30,10 @@ ENV REPO_ASSIST_DATA_DIR=/data \
     PYTHONUNBUFFERED=1
 
 USER app
-# Bake the embedding model into the image so the first ingest needs no download.
-RUN python -c "from repo_assist.embeddings import get_embedder; get_embedder()"
+# Bake the embedding model and the main tree-sitter grammars into the image so ingesting
+# needs no downloads (other languages' grammars are fetched on first use).
+RUN python -c "from repo_assist.embeddings import get_embedder; get_embedder()" \
+    && python -c "import tree_sitter_language_pack as p; from repo_assist.ingest.code import SYMBOL_LANGUAGES as L; p.download(L)"
 
 VOLUME /data
 EXPOSE 8000

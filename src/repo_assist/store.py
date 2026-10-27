@@ -36,11 +36,13 @@ CREATE TABLE IF NOT EXISTS repos (
 
 -- One row per retrievable unit of evidence. `ref` is the citation id shown to
 -- the model and the user: "path:start-end" for code/docs, "PR#12", "issue#3",
--- "discussion#7", "commit:abc1234", "release:v1.0" for history.
+-- "discussion#7", "commit:abc1234", "release:v1.0" for history. Long history
+-- threads are also split into comment-sized "passage" rows (ref "issue#3@1200",
+-- parent "issue#3") so keyword search can land on the comment that matters.
 CREATE TABLE IF NOT EXISTS chunks (
     id         INTEGER PRIMARY KEY,
     repo_id    TEXT NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
-    kind       TEXT NOT NULL,           -- code | doc | commit | issue | pr | discussion | release
+    kind       TEXT NOT NULL,           -- code | doc | commit | issue | pr | discussion | release | passage
     ref        TEXT NOT NULL,
     path       TEXT,
     start_line INTEGER,
@@ -49,7 +51,8 @@ CREATE TABLE IF NOT EXISTS chunks (
     title      TEXT,
     text       TEXT NOT NULL,
     created_at TEXT,
-    embedding  BLOB,
+    parent     TEXT,                    -- passages: ref of the thread they belong to
+    embedding  BLOB,                    -- NULL for passages (keyword-searchable only)
     UNIQUE (repo_id, ref)
 );
 CREATE INDEX IF NOT EXISTS chunks_repo_kind ON chunks (repo_id, kind);
@@ -98,6 +101,7 @@ class Chunk:
     symbol: str | None = None
     title: str | None = None
     created_at: str | None = None
+    parent: str | None = None
     # Text given to the embedding model; defaults to `text`. Code chunks prepend
     # file/symbol context, long threads are cut to their opening.
     embed_text: str | None = None
@@ -147,6 +151,9 @@ def session(db_path: Path | None = None) -> Iterator[sqlite3.Connection]:
 
 def init_db(db_path: Path | None = None) -> None:
     with session(db_path) as conn:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(chunks)")}
+        if columns and "parent" not in columns:  # databases created before passages existed
+            conn.execute("ALTER TABLE chunks ADD COLUMN parent TEXT")
         conn.executescript(SCHEMA)
 
 
@@ -240,16 +247,17 @@ def delete_repo(conn: sqlite3.Connection, repo_id: str) -> None:
 # Index writes
 # ---------------------------------------------------------------------------
 
-def insert_chunks(conn: sqlite3.Connection, repo_id: str, chunks: list[Chunk], vectors: np.ndarray) -> None:
+def insert_chunks(conn: sqlite3.Connection, repo_id: str, chunks: list[Chunk],
+                  vectors: "list[np.ndarray | None] | np.ndarray") -> None:
     for chunk, vector in zip(chunks, vectors, strict=True):
+        blob = None if vector is None else np.asarray(vector, dtype=np.float32).tobytes()
         cur = conn.execute(
             """INSERT INTO chunks (repo_id, kind, ref, path, start_line, end_line, symbol, title,
-                                   text, created_at, embedding)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   text, created_at, parent, embedding)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(repo_id, ref) DO NOTHING""",
             (repo_id, chunk.kind, chunk.ref, chunk.path, chunk.start_line, chunk.end_line,
-             chunk.symbol, chunk.title, chunk.text, chunk.created_at,
-             np.asarray(vector, dtype=np.float32).tobytes()),
+             chunk.symbol, chunk.title, chunk.text, chunk.created_at, chunk.parent, blob),
         )
         if cur.rowcount:
             conn.execute("INSERT INTO chunks_fts (rowid, body) VALUES (?, ?)", (cur.lastrowid, fts_body(chunk)))

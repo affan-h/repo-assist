@@ -133,3 +133,44 @@ def _release_chunk(node: dict) -> Chunk:
         text=f"{title}\nRelease {tag} on {node['createdAt'][:10]}\n\n{body}"[:MAX_THREAD_CHARS],
         embed_text=f"Release {title}\n{body}"[:2000],
     )
+
+
+PASSAGE_CHARS = 1200
+PASSAGE_KINDS = {"issue", "pr", "discussion", "release"}
+_SEGMENT_BOUNDARY = re.compile(r"\n\n(?=--- )")
+
+
+def split_passages(chunk: Chunk) -> list[Chunk]:
+    """Split a long thread into comment-sized passages for keyword search.
+
+    Each passage keeps its character offset in the thread (ref "issue#572@4810"),
+    so search can point the agent at the exact comment instead of the thread's start.
+    """
+    if chunk.kind not in PASSAGE_KINDS or len(chunk.text) <= PASSAGE_CHARS:
+        return []
+    passages = []
+    for segment in _segments(chunk.text):
+        start, text = segment
+        passages.append(Chunk(
+            kind="passage", ref=f"{chunk.ref}@{start}", title=chunk.title, text=text,
+            created_at=chunk.created_at, parent=chunk.ref,
+        ))
+    return passages
+
+
+def _segments(text: str) -> list[tuple[int, str]]:
+    """(offset, text) pieces: one per comment, long comments split at paragraph breaks."""
+    bounds = [0] + [m.start() + 2 for m in _SEGMENT_BOUNDARY.finditer(text)] + [len(text)]
+    pieces = []
+    for seg_start, seg_end in zip(bounds, bounds[1:]):
+        start = seg_start
+        while start < seg_end:
+            end = min(start + PASSAGE_CHARS, seg_end)
+            if end < seg_end:  # prefer to break at a paragraph, then a line
+                cut = max(text.rfind("\n\n", start + PASSAGE_CHARS // 2, end), text.rfind("\n", start + PASSAGE_CHARS // 2, end))
+                end = cut if cut > start else end
+            piece = text[start:end].strip()
+            if piece:
+                pieces.append((start, piece))
+            start = end
+    return pieces

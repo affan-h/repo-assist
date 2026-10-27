@@ -14,8 +14,8 @@ dependencies = [
     "fastembed>=0.7",
     # 0.26.0 segfaults when reading node positions (macOS x86_64, CPython 3.12)
     "tree-sitter>=0.25,<0.26",
-    "tree-sitter-python>=0.25",
-    "tree-sitter-typescript>=0.23",
+    # grammars for 300+ languages, downloaded and cached on first use
+    "tree-sitter-language-pack>=1.22",
     "python-dotenv>=1.0",
 ]
 

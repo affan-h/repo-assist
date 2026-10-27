@@ -8,6 +8,9 @@ const TOOL_LABEL = {
   find_symbol: 'Find symbol',
   read_file: 'Read file',
   grep: 'Grep',
+  list_files: 'List files',
+  search_commits: 'Search commits',
+  code_history: 'Trace code history',
 };
 
 function describeArgs(tool, args = {}) {
@@ -16,6 +19,12 @@ function describeArgs(tool, args = {}) {
       return `${args.path}:${args.start_line ?? 1}-${args.end_line ?? ''}`;
     case 'grep':
       return `/${args.pattern}/${args.path_glob ? ` in ${args.path_glob}` : ''}`;
+    case 'search_commits':
+      return `/${args.pattern}/`;
+    case 'code_history':
+      return `${args.path}:${args.start_line}-${args.end_line}`;
+    case 'list_files':
+      return args.path_glob;
     case 'find_symbol':
       return args.name;
     case 'read_thread':
@@ -132,6 +141,23 @@ export default function Turn({ turn }) {
           <ReactMarkdown components={markdownComponents}>
             {linkCitations(result.answer, result.citations)}
           </ReactMarkdown>
+          {result.quotes?.length > 0 && (
+            <div className="quotes">
+              <h3>Stated rationale (verified verbatim)</h3>
+              {result.quotes.map((q) => {
+                const n = result.citations.findIndex((c) => c.ref.toLowerCase() === q.ref.toLowerCase()) + 1;
+                return (
+                  <blockquote key={q.ref + q.quote}>
+                    “{q.quote}”
+                    <span className="quote-ref">
+                      {' '}
+                      — {n > 0 ? <a href={result.citations[n - 1].url} target="_blank" rel="noreferrer">{q.ref}</a> : q.ref}
+                    </span>
+                  </blockquote>
+                );
+              })}
+            </div>
+          )}
           <Sources citations={result.citations} highlighted={highlighted} />
           <div className="metrics">
             <span>{result.latency_s.toFixed(1)}s</span>

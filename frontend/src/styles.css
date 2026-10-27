@@ -157,6 +157,10 @@ button[type='submit']:disabled { opacity: 0.5; cursor: default; }
   margin: 0 1px; font-size: 0.75em; font-weight: 600; vertical-align: super; cursor: pointer;
 }
 
+.quotes { margin-top: 10px; }
+.quotes h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 4px 0; }
+.quotes blockquote { margin: 6px 0; padding: 6px 12px; border-left: 3px solid var(--accent); background: var(--bg-subtle); border-radius: 0 6px 6px 0; }
+.quote-ref { color: var(--muted); font-size: 0.85em; }
 .sources { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 8px; }
 .sources h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 4px 0; }
 .sources ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }

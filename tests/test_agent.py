@@ -4,8 +4,8 @@ import pytest
 from pydantic_ai.messages import ModelResponse, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from repo_assist import agent, embeddings
-from repo_assist.agent import Answer, Evidence, resolve_citation, validate_answer
+from repo_assist import agent, embeddings, tools
+from repo_assist.grounding import Answer, Evidence, resolve_citation, validate_answer
 from tests.conftest import HashEmbedder
 
 EVIDENCE = {
@@ -105,14 +105,16 @@ def test_tools_register_evidence(ingested_repo, monkeypatch):
             return ModelResponse(parts=[nxt])
         return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {
             "answer": "Timeouts default to 5s so hung servers fail fast [1][2].",
-            "citations": ["pkg/client.py:4-4", "commit:" + _commit_sha()], "abstained": False})])
+            "citations": ["pkg/client.py:4-4", "commit:" + _commit_sha()],
+            "rationale_quotes": [{"ref": "commit:" + _commit_sha(), "quote": "Timeouts default to 5s so hung servers fail fast"}],
+            "abstained": False})])
 
     def _commit_sha():
         return next(r for r in evidence_refs if r.startswith("commit:")).split(":")[1][:7]
 
     evidence_refs = []
-    original_add = agent.Deps.add
-    monkeypatch.setattr(agent.Deps, "add", lambda self, item: (evidence_refs.append(item.ref), original_add(self, item)))
+    original_add = tools.Deps.add
+    monkeypatch.setattr(tools.Deps, "add", lambda self, item: (evidence_refs.append(item.ref), original_add(self, item)))
     result = asyncio.run(agent.answer(ingested_repo, "Why is the default timeout 5s?", model=FunctionModel(respond)))
 
     assert [c.tool for c in result.trace] == ["find_symbol", "grep", "read_file", "search_history"]
@@ -139,7 +141,7 @@ def test_single_shot_uses_retrieved_context_without_tools(ingested_repo, monkeyp
 
 def test_read_thread_replaces_search_preview(ingested_repo, monkeypatch):
     monkeypatch.setattr(embeddings, "_embedder", HashEmbedder())
-    monkeypatch.setattr(agent, "HISTORY_PREVIEW_CHARS", 40)  # preview holds the subject, not the body
+    monkeypatch.setattr(tools, "HISTORY_PREVIEW_CHARS", 40)  # preview holds the subject, not the body
     calls = iter([ToolCallPart("search_history", {"query": "default timeout"}), None])
 
     def respond(messages, info):
@@ -153,7 +155,7 @@ def test_read_thread_replaces_search_preview(ingested_repo, monkeypatch):
         return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {
             "answer": "Fail fast [1].", "citations": [commit_ref], "abstained": False})])
 
-    result = asyncio.run(agent.answer(ingested_repo, "why 5s?", model=FunctionModel(respond)))
+    result = asyncio.run(agent.answer(ingested_repo, "What does the timeout commit say?", model=FunctionModel(respond)))
     text = result.evidence[result.citations[0].ref].text
     assert text.count("Add client with default timeout") == 1
 
@@ -172,7 +174,7 @@ def test_identical_repeat_calls_are_short_circuited(ingested_repo, monkeypatch):
             "answer": "Unknown.", "citations": [], "abstained": True})])
 
     result = asyncio.run(agent.answer(ingested_repo, "timeouts?", model=FunctionModel(respond)))
-    assert returns[-1] == agent.REPEAT_MESSAGE
+    assert returns[-1] == tools.REPEAT_MESSAGE
     assert [c.summary for c in result.trace][-1] == "repeated call skipped"
 
 
@@ -203,8 +205,8 @@ def test_budget_exhaustion_falls_back_to_gathered_evidence(ingested_repo, monkey
     ("release:v9.0.0", "release:v9.0.0"),
 ])
 def test_release_ref_candidates(ref, expected):
-    assert expected in agent._ref_candidates(ref)
+    assert expected in tools._ref_candidates(ref)
 
 
 def test_non_release_refs_are_unchanged():
-    assert agent._ref_candidates("PR#12") == ["PR#12"]
+    assert tools._ref_candidates("PR#12") == ["PR#12"]

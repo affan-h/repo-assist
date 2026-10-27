@@ -14,14 +14,13 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal
-
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from repo_assist import agent, ingest, store
+from repo_assist.agent import Mode
 from repo_assist.ingest.git import parse_repo_url
 
 log = logging.getLogger(__name__)
@@ -53,7 +52,8 @@ class IngestRequest(BaseModel):
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=3, max_length=2000)
-    mode: Literal["agent", "single_shot"] = "agent"
+    mode: Mode = Field(default="agent", description="agent (default), single_shot, or an ablation variant: "
+                                                   "agent_bm25 (no embeddings), agent_noindex (no index)")
 
 
 def _repo_or_404(repo_id: str) -> dict:
