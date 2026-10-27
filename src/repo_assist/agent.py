@@ -1,15 +1,12 @@
-"""Question answering: a tool-using agent (with ablation variants) and a single-shot RAG baseline.
+"""Question answering: the tool-using agent, plus a single-shot RAG baseline used by the evaluation.
 
-All modes share one answer schema and the grounding checks in grounding.py: a final
+Both share one answer schema and the grounding checks in grounding.py: a final
 answer is accepted only if its citations and rationale quotes are backed by
 evidence a tool returned during this run; otherwise the model retries with the
 problems spelled out, so ungrounded answers can't reach the user.
 
-Modes:
-  agent          tools over the hybrid (BM25 + dense) index, code and git history
-  agent_bm25     same tools, keyword-only search (ablation: what do embeddings add?)
-  agent_noindex  no index at all: list/grep/read files and git log (ablation: what does the index add?)
-  single_shot    one hybrid retrieval, one LLM call, no tools (baseline)
+  agent     the product: tools over the hybrid index, the checkout and git history
+  baseline  classic RAG for comparison: one hybrid retrieval, one LLM call, no tools
 """
 
 import asyncio
@@ -26,11 +23,9 @@ from pydantic_ai.usage import UsageLimits
 from repo_assist import retrieval, store
 from repo_assist.config import get_settings
 from repo_assist.grounding import Answer, Evidence, resolve_citation, validate_answer
-from repo_assist.tools import (INDEXED_TOOLS, NO_INDEX_TOOLS, Deps, ToolCall, format_code_hit,
-                               format_history_hit, hit_evidence)
+from repo_assist.tools import TOOLS, Deps, ToolCall, format_code_hit, format_history_hit, hit_evidence
 
-Mode = Literal["agent", "agent_bm25", "agent_noindex", "single_shot"]
-MODES: tuple[Mode, ...] = ("agent", "agent_bm25", "agent_noindex", "single_shot")
+Mode = Literal["agent", "baseline"]
 
 AGENT_LIMITS = UsageLimits(request_limit=12, tool_calls_limit=15)
 
@@ -86,7 +81,7 @@ Answer rules:
 - If the question contains a false premise, say so and cite the evidence that contradicts it.
 - Be concise: a short paragraph or a list. Name the relevant files, functions and line ranges."""
 
-_INDEXED_INSTRUCTIONS = """\
+_AGENT_INSTRUCTIONS = """\
 You answer questions about the GitHub repository {owner}/{name} at commit {sha}.
 Investigate with tools before answering:
 - search_code: search source and docs by meaning and keywords. Good first step for most questions.
@@ -102,16 +97,7 @@ sufficient (usually 2-6 tool calls).
 
 """ + _ANSWER_RULES
 
-_NO_INDEX_INSTRUCTIONS = """\
-You answer questions about the GitHub repository {owner}/{name} at commit {sha}.
-There is no search index: explore with list_files, grep for identifiers and phrases, and read_file to
-read code and docs. For history, search_commits greps commit messages and code_history shows the commits
-that changed specific lines (issue and PR threads themselves are not available). Stop once the evidence
-is sufficient.
-
-""" + _ANSWER_RULES
-
-_SINGLE_SHOT_INSTRUCTIONS = """\
+_BASELINE_INSTRUCTIONS = """\
 You answer questions about the GitHub repository {owner}/{name} at commit {sha}, using only the
 retrieved evidence provided in the message.
 
@@ -133,23 +119,17 @@ async def _check_grounding(ctx: RunContext[Deps], answer: Answer) -> Answer:
     return answer
 
 
-_SETUP = {
-    "agent": (_INDEXED_INSTRUCTIONS, INDEXED_TOOLS),
-    "agent_bm25": (_INDEXED_INSTRUCTIONS, INDEXED_TOOLS),
-    "agent_noindex": (_NO_INDEX_INSTRUCTIONS, NO_INDEX_TOOLS),
-    "single_shot": (_SINGLE_SHOT_INSTRUCTIONS, []),
-}
-
-
-def _build_agent(mode: Mode) -> Agent[Deps, Answer]:
-    template, tools = _SETUP[mode]
-    agent = Agent(None, output_type=Answer, deps_type=Deps, instructions=_instructions(template),
+def _build_agent(instructions: str, tools: list) -> Agent[Deps, Answer]:
+    agent = Agent(None, output_type=Answer, deps_type=Deps, instructions=_instructions(instructions),
                   tools=tools, retries=3)  # model is chosen per run
     agent.output_validator(_check_grounding)
     return agent
 
 
-AGENTS: dict[Mode, Agent[Deps, Answer]] = {mode: _build_agent(mode) for mode in MODES}
+AGENTS: dict[Mode, Agent[Deps, Answer]] = {
+    "agent": _build_agent(_AGENT_INSTRUCTIONS, TOOLS),
+    "baseline": _build_agent(_BASELINE_INSTRUCTIONS, []),  # also writes the step-budget fallback answer
+}
 
 
 # ---------------------------------------------------------------------------
@@ -210,13 +190,13 @@ async def _answer_from_gathered_evidence(deps: Deps, question: str, model) -> tu
     prompt = (f"Question: {question}\n\nEvidence gathered while investigating (the investigation ran out of "
               f"steps; answer from this evidence or abstain):\n\n" + "\n\n".join(blocks))
     try:
-        result = await AGENTS["single_shot"].run(prompt, model=model, deps=deps)
+        result = await AGENTS["baseline"].run(prompt, model=model, deps=deps)
         return result.output, result.usage
     except UnexpectedModelBehavior:
         return None, None
 
 
-def _single_shot_context(deps: Deps, question: str) -> str:
+def _baseline_context(deps: Deps, question: str) -> str:
     code_hits = retrieval.search(deps.repo_id, question, retrieval.CODE_KINDS, k=6)
     history_hits = retrieval.search_history(deps.repo_id, question, k=4)
     blocks = []
@@ -241,19 +221,18 @@ def _emit_tool_event(event, deps: Deps, emit: Callable[[dict], None]) -> None:
 
 async def answer(repo_id: str, question: str, mode: Mode = "agent", model: "str | Model | None" = None,
                  on_event: Callable[[dict], None] | None = None) -> Result:
-    """Answer `question` about an ingested repo. `on_event` receives live trace events (agent modes)."""
+    """Answer `question` about an ingested repo. `on_event` receives live tool events (agent mode)."""
     with store.session() as conn:
         repo = store.get_repo(conn, repo_id)
     if repo is None or not repo["stats"]:
         raise ValueError(f"Repository {repo_id!r} is not indexed")
 
-    deps = Deps(repo=repo, question=question, search_mode="bm25" if mode == "agent_bm25" else "hybrid",
-                use_index=mode != "agent_noindex")
+    deps = Deps(repo=repo, question=question)
     emit = on_event or (lambda event: None)
     started = time.monotonic()
 
-    if mode == "single_shot":
-        prompt = f"Question: {question}\n\nRetrieved evidence:\n\n{_single_shot_context(deps, question)}"
+    if mode == "baseline":
+        prompt = f"Question: {question}\n\nRetrieved evidence:\n\n{_baseline_context(deps, question)}"
     else:
         prompt = question
 

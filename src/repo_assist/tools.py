@@ -39,8 +39,6 @@ class ToolCall:
 class Deps:
     repo: dict
     question: str = ""  # the user's question (the rationale guardrail keys off it)
-    search_mode: retrieval.SearchMode = "hybrid"
-    use_index: bool = True  # False for the no-index ablation: tools must not consult the index
     evidence: dict[str, Evidence] = field(default_factory=dict)
     trace: dict[str, ToolCall] = field(default_factory=dict)
     seen_calls: set[str] = field(default_factory=set)
@@ -120,7 +118,7 @@ def search_code(ctx: RunContext[Deps], query: str) -> str:
     if ctx.deps.is_repeat(ctx, "search_code", {"query": query}):
         return REPEAT_MESSAGE
     started = time.monotonic()
-    hits = retrieval.search(ctx.deps.repo_id, query, retrieval.CODE_KINDS, k=SEARCH_RESULTS, mode=ctx.deps.search_mode)
+    hits = retrieval.search(ctx.deps.repo_id, query, retrieval.CODE_KINDS, k=SEARCH_RESULTS)
     for hit in hits:
         ctx.deps.add(hit_evidence(hit))
     ctx.deps.record(ctx, "search_code", {"query": query}, f"{len(hits)} results", [h.ref for h in hits], started)
@@ -134,7 +132,7 @@ def search_history(ctx: RunContext[Deps], query: str) -> str:
     if ctx.deps.is_repeat(ctx, "search_history", {"query": query}):
         return REPEAT_MESSAGE
     started = time.monotonic()
-    hits = retrieval.search_history(ctx.deps.repo_id, query, k=SEARCH_RESULTS, mode=ctx.deps.search_mode)
+    hits = retrieval.search_history(ctx.deps.repo_id, query, k=SEARCH_RESULTS)
     for hit in hits:
         ctx.deps.add(Evidence(ref=hit.ref, kind=hit.kind, text=hit.text[:HISTORY_PREVIEW_CHARS], title=hit.title))
     ctx.deps.record(ctx, "search_history", {"query": query}, f"{len(hits)} results", [h.ref for h in hits], started)
@@ -215,7 +213,7 @@ def find_symbol(ctx: RunContext[Deps], name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Checkout-backed tools (no index needed)
+# Checkout-backed tools
 # ---------------------------------------------------------------------------
 
 def read_file(ctx: RunContext[Deps], path: str, start_line: int = 1, end_line: int = 120) -> str:
@@ -279,31 +277,11 @@ def _commit_lines(ctx: RunContext[Deps], commits: list[git.Commit]) -> list[str]
     lines = []
     for c in commits:
         ctx.deps.add(Evidence(ref=c.ref, kind="commit", text=c.message, title=c.subject))
-        if ctx.deps.use_index:
-            links = _linked_refs(ctx.deps.repo_id, c.linked_numbers())
-        else:
-            links = [f"#{n}" for n in c.linked_numbers()]
+        links = _linked_refs(ctx.deps.repo_id, c.linked_numbers())
         linked = f" (linked: {', '.join(links)})" if links else ""
         body = f"\n    {c.body[:300]}" if c.body else ""
         lines.append(f"[{c.ref}] {c.date[:10]} {c.subject}{linked}{body}")
     return lines
-
-
-def search_commits(ctx: RunContext[Deps], pattern: str) -> str:
-    """Search commit messages with a case-insensitive regex (like `git log --grep`), e.g.
-    'retry|backoff'. Shows each commit's message and the issues/PRs it references."""
-    if ctx.deps.is_repeat(ctx, "search_commits", {"pattern": pattern}):
-        return REPEAT_MESSAGE
-    started = time.monotonic()
-    try:
-        commits = git.search_commits(retrieval.repo_dir(ctx.deps.repo_id), pattern)
-    except RuntimeError as exc:
-        ctx.deps.record(ctx, "search_commits", {"pattern": pattern}, "invalid pattern", [], started)
-        return f"git log failed: {exc}"
-    lines = _commit_lines(ctx, commits)
-    ctx.deps.record(ctx, "search_commits", {"pattern": pattern}, f"{len(commits)} commits",
-                    [c.ref for c in commits], started)
-    return "\n".join(lines) or "No matching commits."
 
 
 def code_history(ctx: RunContext[Deps], path: str, start_line: int, end_line: int) -> str:
@@ -328,7 +306,4 @@ def code_history(ctx: RunContext[Deps], path: str, start_line: int, end_line: in
     return "\n".join(lines) or "No commits found for those lines."
 
 
-# Toolsets per agent variant (see agent.py). The no-index variant only uses the checkout and git,
-# the way a coding assistant without a search index would work.
-INDEXED_TOOLS = [search_code, search_history, read_thread, find_symbol, read_file, grep, list_files, code_history]
-NO_INDEX_TOOLS = [list_files, grep, read_file, search_commits, code_history]
+TOOLS = [search_code, search_history, read_thread, code_history, find_symbol, read_file, grep, list_files]

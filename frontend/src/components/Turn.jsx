@@ -126,10 +126,7 @@ export default function Turn({ turn }) {
 
   return (
     <article className="turn">
-      <div className="question">
-        <span className="mode-tag">{turn.mode === 'agent' ? 'Agent' : 'Single-shot'}</span>
-        {turn.question}
-      </div>
+      <div className="question">{turn.question}</div>
 
       <Trace steps={turn.steps} running={running} />
 

@@ -4,7 +4,7 @@ For each question with gold evidence, the question text is used as the query
 against the source/doc index (code gold) or the history index (history gold),
 and we record the rank of the first chunk that overlaps the gold evidence.
 
-    python evals/retrieval_eval.py --split test     # writes evals/results/v2/test/retrieval.{json,md}
+    python evals/retrieval_eval.py --split test     # writes evals/results/test/retrieval.{json,md}
 """
 
 import argparse
@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from evals.common import RESULTS_DIR, gold_items, load_questions  # noqa: E402
+from evals.common import gold_items, load_questions, results_dir  # noqa: E402
 from repo_assist import retrieval, store  # noqa: E402
 
 MODES = ("bm25", "dense", "hybrid")
@@ -72,7 +72,7 @@ def main() -> None:
                "history": [r for r in rows if r["history"]]}
     summary = {name: {m: summarise([r[m] for r in subset]) for m in MODES}
                for name, subset in subsets.items() if subset}
-    out_dir = RESULTS_DIR / "v2" / args.split
+    out_dir = results_dir(args.split)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "retrieval.json").write_text(json.dumps({"summary": summary, "questions": rows}, indent=2))
     (out_dir / "retrieval.md").write_text(render(summary))

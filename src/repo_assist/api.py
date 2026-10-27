@@ -3,7 +3,7 @@
     GET  /api/repos                     list repositories
     POST /api/repos                     ingest {url, ref?} in the background (202)
     GET  /api/repos/{id}                status and stats
-    POST /api/repos/{id}/ask            answer {question, mode} as JSON
+    POST /api/repos/{id}/ask            answer {question} as JSON
     POST /api/repos/{id}/ask/stream     same, as server-sent events (tool calls live, then the answer)
 """
 
@@ -20,7 +20,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from repo_assist import agent, ingest, store
-from repo_assist.agent import Mode
 from repo_assist.ingest.git import parse_repo_url
 
 log = logging.getLogger(__name__)
@@ -52,8 +51,6 @@ class IngestRequest(BaseModel):
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=3, max_length=2000)
-    mode: Mode = Field(default="agent", description="agent (default), single_shot, or an ablation variant: "
-                                                   "agent_bm25 (no embeddings), agent_noindex (no index)")
 
 
 def _repo_or_404(repo_id: str) -> dict:
@@ -113,7 +110,7 @@ def get_repo(repo_id: str) -> dict:
 @app.post("/api/repos/{repo_id}/ask")
 async def ask(repo_id: str, req: AskRequest) -> dict:
     _ready_or_409(repo_id)
-    result = await agent.answer(repo_id, req.question, mode=req.mode)
+    result = await agent.answer(repo_id, req.question)
     return result.to_dict()
 
 
@@ -124,7 +121,7 @@ async def ask_stream(repo_id: str, req: AskRequest) -> StreamingResponse:
 
     async def produce() -> None:
         try:
-            await agent.answer(repo_id, req.question, mode=req.mode, on_event=queue.put_nowait)
+            await agent.answer(repo_id, req.question, on_event=queue.put_nowait)
         except Exception as exc:  # surface model/API failures to the client
             log.exception("Answering failed")
             queue.put_nowait({"type": "error", "message": f"{type(exc).__name__}: {exc}"})

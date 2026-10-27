@@ -7,7 +7,7 @@ import pytest
 from pydantic_ai.messages import ModelResponse, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import FunctionModel
 
-from repo_assist import agent, embeddings, retrieval, store
+from repo_assist import agent, embeddings, retrieval, store, tools
 from repo_assist.config import get_settings
 from repo_assist.ingest import github
 from tests.conftest import HashEmbedder
@@ -103,19 +103,6 @@ def test_code_history_traces_lines_to_linked_threads(repo_with_history):
     assert any(ref.startswith("commit:") for ref in result.evidence)
 
 
-def test_noindex_variant_only_has_checkout_and_git_tools(repo_with_history):
-    result, seen = _run(repo_with_history, "agent_noindex", iter([
-        ToolCallPart("list_files", {"path_glob": "pkg/*"}),
-        ToolCallPart("search_commits", {"pattern": "timeout"}),
-    ]))
-    assert seen["tools"] == {"list_files", "grep", "read_file", "search_commits", "code_history"}
-    assert seen["returns"][0] == "pkg/client.py"
-    assert "Make timeout configurable (#12)" in seen["returns"][1] and "linked: #7, #12" in seen["returns"][1]
-
-
-def test_bm25_variant_searches_without_embeddings(repo_with_history, monkeypatch):
-    modes = []
-    original = retrieval.search
-    monkeypatch.setattr(retrieval, "search", lambda *a, **k: (modes.append(k.get("mode")), original(*a, **k))[1])
-    _run(repo_with_history, "agent_bm25", iter([ToolCallPart("search_code", {"query": "timeout"})]))
-    assert modes == ["bm25"]
+def test_agent_toolset():
+    assert {t.__name__ for t in tools.TOOLS} == {
+        "search_code", "search_history", "read_thread", "code_history", "find_symbol", "read_file", "grep", "list_files"}

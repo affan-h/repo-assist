@@ -24,11 +24,11 @@ export const ingestRepo = (url, ref) =>
  * Ask a question and receive server-sent events as they happen:
  * tool_call, tool_result, answer, error, done.
  */
-export async function askStream(repoId, question, mode, onEvent, signal) {
+export async function askStream(repoId, question, onEvent, signal) {
   const res = await fetch(`/api/repos/${encodeURIComponent(repoId)}/ask/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, mode }),
+    body: JSON.stringify({ question }),
     signal,
   });
   if (!res.ok) {

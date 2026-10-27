@@ -119,12 +119,6 @@ def _parse_log(output: str) -> list[Commit]:
     return commits
 
 
-def search_commits(repo_dir: Path, pattern: str, limit: int = 15) -> list[Commit]:
-    """Commits reachable from HEAD whose message matches `pattern` (case-insensitive regex)."""
-    return _parse_log(_git(repo_dir, "log", "--no-merges", "-i", "-E", f"--grep={pattern}", f"-n{limit}",
-                           f"--format={_LOG_FORMAT}"))
-
-
 def line_history(repo_dir: Path, path: str, start: int, end: int, limit: int = 10) -> list[Commit]:
     """Commits that changed lines start..end of `path`, newest first (git log -L)."""
     return _parse_log(_git(repo_dir, "log", f"-L{start},{end}:{path}", "-s", f"-n{limit}",

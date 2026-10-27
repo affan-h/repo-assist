@@ -26,7 +26,6 @@ const SAMPLE_QUESTIONS = {
 export default function App() {
   const [repos, setRepos] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
-  const [mode, setMode] = useState('agent');
   const [turnsByRepo, setTurnsByRepo] = useState({});
   const [question, setQuestion] = useState('');
   const [loadError, setLoadError] = useState(null);
@@ -78,7 +77,7 @@ export default function App() {
     setQuestion('');
     setTurnsByRepo((all) => ({
       ...all,
-      [repoId]: [...(all[repoId] ?? []), { id: turnId, question: q, mode, status: 'running', steps: [] }],
+      [repoId]: [...(all[repoId] ?? []), { id: turnId, question: q, status: 'running', steps: [] }],
     }));
 
     const onEvent = (event) => {
@@ -97,7 +96,7 @@ export default function App() {
     };
 
     try {
-      await askStream(repoId, q, mode, onEvent);
+      await askStream(repoId, q, onEvent);
     } catch (err) {
       updateTurn(repoId, turnId, (t) => ({ ...t, status: 'error', error: err.message }));
     }
@@ -141,23 +140,6 @@ export default function App() {
                 >
                   indexed at {repo.commit_sha?.slice(0, 10)}
                 </a>
-              </div>
-              <div className="mode-toggle" role="radiogroup" aria-label="Answering mode">
-                {[
-                  ['agent', 'Agent', 'Plans its own searches, reads code and history, then answers'],
-                  ['single_shot', 'Single-shot', 'Classic RAG: one retrieval, one LLM call'],
-                ].map(([value, label, hint]) => (
-                  <button
-                    key={value}
-                    role="radio"
-                    aria-checked={mode === value}
-                    className={mode === value ? 'active' : ''}
-                    onClick={() => setMode(value)}
-                    title={hint}
-                  >
-                    {label}
-                  </button>
-                ))}
               </div>
             </header>
 

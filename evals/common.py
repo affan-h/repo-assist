@@ -9,6 +9,10 @@ EVAL_DIR = Path(__file__).resolve().parent
 DATASET = EVAL_DIR / "questions.json"
 RESULTS_DIR = EVAL_DIR / "results"
 
+
+def results_dir(split: str) -> Path:
+    return RESULTS_DIR / split
+
 _RANGE = re.compile(r"^(?P<path>[^:#]+):(?P<start>\d+)-(?P<end>\d+)$")
 
 

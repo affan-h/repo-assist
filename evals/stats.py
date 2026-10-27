@@ -44,3 +44,14 @@ def mcnemar_exact(a_correct: list[bool], b_correct: list[bool]) -> dict:
         return {"a_only": 0, "b_only": 0, "p_value": 1.0}
     tail = sum(math.comb(n, k) for k in range(min(a_only, b_only) + 1)) / 2 ** n
     return {"a_only": a_only, "b_only": b_only, "p_value": min(1.0, 2 * tail)}
+
+
+def cohens_kappa(a: list[bool], b: list[bool]) -> float:
+    """Agreement between two raters beyond what chance would produce (1 = perfect, 0 = chance)."""
+    n = len(a)
+    if n == 0:
+        return float("nan")
+    observed = sum(x == y for x, y in zip(a, b, strict=True)) / n
+    pa, pb = sum(a) / n, sum(b) / n
+    expected = pa * pb + (1 - pa) * (1 - pb)
+    return 1.0 if expected == 1 else (observed - expected) / (1 - expected)

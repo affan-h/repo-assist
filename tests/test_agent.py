@@ -123,7 +123,7 @@ def test_tools_register_evidence(ingested_repo, monkeypatch):
     assert result.citations[1].url.startswith("https://github.com/acme/widget/commit/")
 
 
-def test_single_shot_uses_retrieved_context_without_tools(ingested_repo, monkeypatch):
+def test_baseline_uses_retrieved_context_without_tools(ingested_repo, monkeypatch):
     monkeypatch.setattr(embeddings, "_embedder", HashEmbedder())
     prompts = []
 
@@ -133,7 +133,7 @@ def test_single_shot_uses_retrieved_context_without_tools(ingested_repo, monkeyp
         return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {
             "answer": "No documented rationale.", "citations": [], "abstained": True})])
 
-    result = asyncio.run(agent.answer(ingested_repo, "transport for url", mode="single_shot",
+    result = asyncio.run(agent.answer(ingested_repo, "transport for url", mode="baseline",
                                       model=FunctionModel(respond)))
     assert "Retrieved evidence" in prompts[0] and "_transport_for_url" in prompts[0]
     assert result.abstained and result.trace == [] and result.evidence

@@ -24,3 +24,10 @@ def test_mcnemar_exact_matches_binomial():
     assert (result["a_only"], result["b_only"]) == (9, 1)
     assert result["p_value"] == pytest.approx(22 / 1024)
     assert mcnemar_exact([True, False], [True, False])["p_value"] == 1.0
+
+
+def test_cohens_kappa():
+    from evals.stats import cohens_kappa
+    assert cohens_kappa([True, False, True, False], [True, False, True, False]) == 1.0
+    # agreement no better than chance
+    assert cohens_kappa([True, True, False, False], [True, False, True, False]) == pytest.approx(0.0)
