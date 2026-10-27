@@ -874,18 +874,20 @@
     {
       "id": "Y6",
       "repo": "httpx",
-      "category": "unanswerable",
-      "expected": "abstain",
+      "category": "why",
+      "expected": "answer",
       "question": "Why does httpx enforce timeouts by default when the `requests` library has no timeout by default?",
-      "reference_answer": "The docs state the behaviour (httpx enforces timeouts everywhere by default, 5 seconds of inactivity; requests has none, see docs/compatibility.md) and PR #2433 added that comparison, but no source states the reason for the design choice.",
+      "reference_answer": "docs/quickstart.md says HTTPX includes reasonable timeouts for all network operations by default so that a connection that is not properly established raises an error rather than hanging indefinitely (default: five seconds of inactivity). docs/compatibility.md notes that Requests has no timeouts by default and that timeout=None reproduces that behaviour.",
       "key_facts": [
-        "The system says the docs describe the default but give no rationale for it"
+        "Default timeouts make a failed/stalled connection raise an error instead of hanging indefinitely",
+        "The default is five seconds of network inactivity",
+        "Requests has no timeout by default; timeout=None gives the same behaviour in httpx"
       ],
       "gold_evidence": [
-        "docs/compatibility.md:148-156",
-        "docs/advanced/timeouts.md:1-6"
+        "docs/quickstart.md:449-456",
+        "docs/compatibility.md:148-156"
       ],
-      "verification": "docs/compatibility.md:148-156; docs/advanced/timeouts.md:1-6; PR#2433; history search. CORRECTED: the original claimed a documented 'design philosophy' rationale."
+      "verification": "docs/quickstart.md:451-455; docs/compatibility.md:148-156. CORRECTED after evaluation run 2: originally labelled unanswerable, but the quickstart states the purpose of default timeouts (the agent cited it)."
     },
     {
       "id": "Y8",

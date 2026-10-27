@@ -1,231 +1,199 @@
 # repo-assist
 
-A codebase intelligence system that answers structural, historical, and architectural questions about codebases with grounded, verifiable citations. Instead of generic LLM search, it builds a local SQLite code graph (AST symbols, call edges, inheritance), mines git commit churn and GitHub discussions, indexes documentation, and synthesizes answers that cite concrete sources (`CODE#<symbol>`, `PR#<num>`, `DOCS#<section>`) or honestly abstain when evidence is missing.
-
-Includes pre-indexed data for five open-source repositories (`httpx`, `got`, `requests`, `itsdangerous`, `bottle`), a React web interface, a REST API, and a terminal CLI.
-
----
-
-## Quick Start with Docker (Recommended)
-
-Docker Compose starts both the backend API and frontend UI with all pre-seeded repositories ready to query immediately.
-
-### Prerequisites
-- [Docker](https://docs.docker.com/get-docker/) & Docker Compose
-- [Ollama](https://ollama.com) installed and running on your host machine (`ollama serve`)
-  *(Symbol summarization during new repo ingestion runs a local 1.5B model on your host CPU)*
-- A [Gemini API key](https://aistudio.google.com/apikey) (used for grounded synthesis and verification)
-- A [GitHub Personal Access Token](https://github.com/settings/tokens) (classic token with standard public repo access, used for live ingestion)
-
-### Run in 3 steps:
-
-```bash
-# 1. Pull the local summarization model on your host (one-time, ~1GB)
-ollama pull qwen2.5-coder:1.5b
-
-# 2. Configure credentials
-cp .env.example .env
-# Edit .env and fill in GEMINI_API_KEY and GITHUB_TOKEN
-
-# 3. Start the containers
-docker compose up --build
-```
-
-Once started:
-- **Web UI**: [http://localhost:5173](http://localhost:5173) — select any repository to ask questions immediately, or paste a public GitHub URL to ingest a new repository live.
-- **Backend API & Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-
-To stop and completely remove persisted data volumes:
-```bash
-docker compose down -v
-```
-
----
-
-## Manual Setup (Without Docker)
-
-If you prefer running directly on your host machine:
-
-### Prerequisites
-- Python 3.10+
-- Node.js 18+ (for frontend)
-- Git
-- Ollama with `qwen2.5-coder:1.5b`
-
-### 1. Backend
-
-```bash
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies and repo-assist CLI
-pip install -e .
-
-# Set environment variables
-cp .env.example .env
-export GEMINI_API_KEY="your-gemini-key"
-export GITHUB_TOKEN="your-github-token"
-
-# Run the API server (from src/ so database paths resolve properly)
-cd src
-uvicorn api:app --host 0.0.0.0 --port 8000
-```
-
-### 2. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-Open [http://localhost:5173](http://localhost:5173) to access the interface.
-
----
-
-## Usage Examples
-
-### 1. CLI Usage
-
-You can query any ingested repository directly from your terminal using `repo-assist ask`:
-
-```bash
-# General questions (auto-routed)
-repo-assist ask httpx "What does the Client class do?"
-repo-assist ask got "Why does got default to 2 retries?"
-repo-assist ask httpx "Where does httpx decode response content according to charset?"
-
-# Force a specific query category (what, how, where, why, topology)
-repo-assist ask httpx "What does the Limits class control?" --category what
-repo-assist ask got "Trace the call chain from got(url) to the Node.js http.request call" --category topology
-
-# Select query engine (v1 default vs v2 multi-agent)
-repo-assist ask httpx "What does AsyncClient do?" --engine v1
-repo-assist ask httpx "What does AsyncClient do?" --engine v2
-
-# Verbose mode: inspect routing decisions, retrieved sources, and citations
-repo-assist ask got "Why does got default to 2 retries?" --verbose
-```
-
-> **Note on CLI Directory:** Run `repo-assist` from inside `src/` (or set `DATA_DIR` and `REPOS_DIR` in your environment) so the CLI resolves `data/code_graph.db` properly.
-
-### 2. REST API Usage
-
-The backend exposes FastAPI endpoints for programmatic access:
-
-#### Query a repository
-```bash
-curl -X POST http://localhost:8000/repos/httpx/ask \
-  -H "Content-Type: application/json" \
-  -d '{"question": "What does the Client class do?", "engine": "v1"}'
-```
-Response:
-```json
-{
-  "repo_id": "httpx",
-  "question": "What does the Client class do?",
-  "engine": "v1",
-  "category": "what",
-  "answer": "The Client class represents an HTTP client in HTTPX that handles connection pooling, HTTP/2 support, redirects...",
-  "citation_source_id": "CODE#Client",
-  "abstained": false,
-  "abstain_reason": null,
-  "model_used": "google:gemini-3.5-flash-lite"
-}
-```
-
-#### List all indexed repositories
-```bash
-curl http://localhost:8000/repos
-```
-
-#### Ingest a new repository
-```bash
-curl -X POST http://localhost:8000/repos \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://github.com/pallets/click.git"}'
-```
-
-#### Poll ingestion progress
-```bash
-curl http://localhost:8000/repos/click/status
-```
-
----
-
-## Architecture Overview
-
-`repo-assist` combines deterministic static analysis with targeted multi-agent retrieval:
+**Agentic RAG over GitHub repositories.** Ask what a codebase does, where something lives, how it works,
+or *why* it was designed that way, and get an answer in which every claim cites the exact lines, commits,
+issues, PRs, discussions or release notes it came from. If the evidence isn't there, it says so.
 
 ```text
-               ┌──────────────────────────────────────────────┐
-               │    User Query (Web UI, CLI, or REST API)    │
-               └──────────────────────┬───────────────────────┘
-                                      │
-                                      ▼
-               ┌──────────────────────────────────────────────┐
-               │              Query Orchestrator              │
-               │  • v1: Deterministic category router         │
-               │  • v2: Multi-agent planner + ONNX embeddings │
-               └──────────────────────┬───────────────────────┘
-                                      │
-            ┌─────────────────────────┴─────────────────────────┐
-            ▼                                                   ▼
-┌───────────────────────────────┐               ┌───────────────────────────────┐
-│     Code & History Graph      │               │     Semantic & Doc Indices    │
-│ • Tree-sitter AST symbols     │               │ • Qdrant Vector DB (HNSW ANN) │
-│ • CALLS & EXTENDS hierarchies │               │ • EmbeddingGemma ONNX vectors │
-│ • Git commit churn & authors  │               │ • Markdown doc chunks (BM25)  │
-│ • Local Ollama symbol summary │               │ • GitHub PR discussions &     │
-└───────────────┬───────────────┘               │   release notes               │
-                │                               └───────────────┬───────────────┘
-                │                                               │
-                └──────────────────────┬────────────────────────┘
-                                       ▼
-               ┌──────────────────────────────────────────────┐
-               │         Grounded Synthesizer & Verifier       │
-               │ • Closed-universe citations (CODE#, PR#)     │
-               │ • Verifier checks draft against evidence     │
-               │ • Explicit abstention on missing proof       │
-               └──────────────────────────────────────────────┘
+$ repo-assist ask httpx "Why was sync support dropped in httpx 0.8?"
+  -> search_history(query='sync support dropped 0.8')
+     8 results
+  -> read_thread(ref='PR#544')
+     Drop sync (chars 0-1317 of 1317)
+  -> read_thread(ref='issue#572')
+     Supporting Sync. Done right. (chars 0-6000 of 7662)
+
+  Sync support was dropped in 0.8 (PR #544) because bridging a sync API onto the async core
+  through Sync/Async subclasses produced poorer, less comprehensible code [1][2], and it failed in
+  environments that already run an event loop, such as Jupyter [1]. ...
+
+Sources:
+  [1] issue#572  https://github.com/encode/httpx/issues/572
+  [2] PR#544     https://github.com/encode/httpx/pull/544
 ```
 
-### Vector Database Architecture (Qdrant)
+<!-- RESULTS -->
 
-The semantic retrieval layer (`src/vector_store.py`) is powered by **Qdrant**:
-- **Dual Operating Modes**:
-  - **Embedded Local Mode (Default)**: Runs in-process using Qdrant's Rust storage engine directly persisting to `DATA_DIR / "qdrant"`. Zero external daemons or services required.
-  - **Client-Server Mode**: Connects to an external Qdrant cluster if `QDRANT_URL` is set in `.env` (e.g. `http://localhost:6333`).
-- **HNSW Indexing**: Approximate Nearest Neighbor (ANN) search replacing legacy $O(N)$ linear scans, configured with `on_disk=True` for low memory footprint (< 100 MB).
-- **Multi-Tenant Filtered Search**: Traversal enforces `repo == target_repo` directly within the HNSW index, guaranteeing complete tenant isolation with zero cross-repository leakage.
-- **Deterministic Point IDs**: Uses UUID5 hashes computed from composite keys (`{repo}::{source_type}::{source_id}`) for idempotent, reproducible upserts.
-- **Graceful Fallback**: Automatically falls back to SQLite linear scans if Qdrant has not yet been indexed for a given repository.
+## How it works
 
-### Ingestion Pipeline
-When a repository is added, it progresses through an 8-stage pipeline:
-1. `QUEUED` → Scheduled in background worker.
-2. `CLONED` → Git shallow clone to local storage.
-3. `PARSED` → Tree-sitter AST extraction for symbols and imports.
-4. `GRAPH_BUILT` → Call-graph edges, typed calls, inheritance hierarchies, and PageRank centrality.
-5. `HISTORY_ATTACHED` → Git commit churn mined via PyDriller, PR metadata, and documentation chunks.
-6. `SUMMARIZED` → Symbol-level purpose and delegation summaries generated via local Ollama.
-7. `INDEXED` → Dense vector embeddings generated via raw ONNX runtime (`EmbeddingGemma-300M`) and indexed into Qdrant vector database (`src/data/qdrant`).
-8. `READY` → Open for queries.
+```text
+                ┌─────────────────────────── ingest (once per repo, pinned commit) ───────────────────────────┐
+ GitHub repo ──▶│ git clone ──▶ tree-sitter: symbol-level code chunks, symbol table, call sites               │
+                │           ──▶ Markdown: heading-scoped doc chunks                                          │
+                │           ──▶ git log: one chunk per commit message                                        │
+                │ GraphQL  ──▶ issues, PRs, discussions (+30 comments), release notes, created before the commit│
+                │ bge-small (local ONNX) embeddings ──▶ SQLite: chunks · FTS5 (BM25) · vectors · symbols · calls │
+                └───────────────────────────────────────────────────────────────────────────────────────────────┘
 
----
+ question ──▶ Agent (pydantic-ai, Gemini) ── bounded tool loop ──────────────────────────────────────┐
+                 search_code      hybrid BM25 + dense, fused with reciprocal rank fusion             │
+                 search_history   same, over commits / issues / PRs / discussions / releases         │
+                 find_symbol      definition + call sites from the symbol tables                    │
+                 read_file, grep  the pinned checkout (tracked files only)                          │
+                 read_thread      full thread, paged                                                │
+              every tool records the evidence it showed the model ──▶ evidence ledger ─────────────┘
+                                                                         │
+              structured Answer {answer, citations[], abstained} ──▶ citation validator
+                  rejects any citation not in the ledger (code citations must fall inside lines
+                  the model actually saw) and makes the model retry ──▶ answer + GitHub permalinks
+```
 
-## Known Limitations
+**Ingestion** (`src/repo_assist/ingest/`) clones a repository at a pinned commit and splits it along its
+own structure. Each function and method becomes a chunk with its exact line range, classes get a header
+chunk, and Markdown is split by heading with the heading trail kept as context. History comes from `git log`
+and the GitHub GraphQL API. Threads created after the indexed commit are dropped, so the history matches the
+code snapshot and the evaluation can't benefit from future knowledge.
 
-- **Why-question coverage & closed issue trackers:** Answering "why" a design choice was made requires that the maintainers recorded the rationale in commit messages, PR descriptions, or discussions. If no rationale was ever documented, or if an issue tracker was closed (for instance, HTTPX closed its GitHub Issues tracker in early 2026), the system will honestly abstain rather than confabulate a justification.
-- **Engine choice (`v1` vs `v2`):**
-  - **`v1` (default)** uses a deterministic router that selects specialized retrieval tools based on query intent. It is fast, lightweight, and excels at precision and safe abstention.
-  - **`v2`** adds dense vector embeddings and a multi-agent planner with specialist agents (`structural`, `history`, `docs`). While `v2` is better at broad conceptual searches across large documentation, its strict verification filters can cause it to abstain more conservatively on nuanced historical questions.
-- **Local LLM ingestion speed:** Symbol summarization during new repository ingestion relies on `qwen2.5-coder:1.5b` running on the host via Ollama. On CPU without GPU acceleration, ingesting a repository with 20-50 files typically takes 1 to 4 minutes.
-- **Multi-hop call topology boundaries:** Call chain tracing resolves static and typed call edges accurately. Deep dynamic chains involving dynamic metaprogramming or complex runtime monkey-patching cannot be fully resolved statically; in those cases, the system returns the verified segment of the chain rather than guessing the remainder.
-- **Background task scale:** Ingestion runs as an in-process FastAPI `BackgroundTask` backed by SQLite in WAL mode. This is designed for single-node developer use; deploying as a high-concurrency shared service would require a distributed task queue (e.g. Celery / Redis).
+**Retrieval** (`retrieval.py`) runs BM25 (SQLite FTS5, with `camelCase`/`snake_case` identifiers split into
+words) and exact cosine search, then fuses the two rankings with reciprocal rank fusion. Lexical search finds
+identifiers, dense search finds paraphrases, and fusion keeps the hits either one ranks highly (measured below).
 
----
+**The agent** (`agent.py`) is one pydantic-ai agent with six tools and a hard step budget. Search results are
+treated as pointers: the instructions push the model to read the code before relying on details, and to look in
+history for "why" questions, where only a stated reason counts.
+
+**Grounding is enforced in code, not only in the prompt.** Every tool writes what it returned into an evidence
+ledger. The final answer is a typed object, and an output validator checks each citation against the ledger. A
+code citation such as `httpx/_client.py:762-765` is accepted only if those lines fall inside a range the model
+was actually shown. Anything else is rejected with a list of valid refs, and the model retries. Invented
+citations can't reach the user.
+
+**The single-shot baseline** uses the same index, schema and validator, with one hybrid retrieval and one LLM call
+and no tools. It exists so the agent's extra cost has to justify itself in the evaluation.
+
+## Design decisions
+
+| Decision | Why | Trade-off |
+|---|---|---|
+| **One agent, not several** | An earlier version of this project had a planner, three "specialist" agents and a verifier. Its own evaluation scored it *below* the simpler pipeline (35.7% vs 41.1%), with most specialists wrapping the same functions. One agent with good tools is easier to reason about and measure. | No parallel specialists; a single loop with a step budget. |
+| **SQLite for everything** | A repository is a few thousand chunks, so exact cosine search over an in-memory numpy matrix takes about a millisecond, and FTS5 gives BM25 in the same file. One file, transactional re-indexing, no extra service. | Exact search won't scale to millions of chunks; at that point swap in an ANN index (FAISS/HNSW, pgvector, Qdrant) behind `dense_search`. |
+| **Local embeddings (bge-small, ONNX)** | Gemini's free tier counts each embedded text as a request (100/min), which makes indexing thousands of chunks take hours. Larger local models were 3–10× slower on the CPU this was built on. Exact identifiers are handled by BM25 and grep, so dense search only needs to capture meaning. | 512-token context; weaker on code than code-specific models. |
+| **Tools for exact lookup (grep, find_symbol, read_file)** | Code questions often hinge on an exact identifier, import or literal, which embeddings blur. This replaces the old project's 1,200 lines of call-graph resolvers with name-based call sites that the agent verifies by reading. | Call sites are matched by name, so common names produce false positives (the tool says so). |
+| **History as evidence** | "Why" questions are where code search alone fails; the reasons live in issues, PRs, discussions and release notes. Fetching threads before the pinned commit keeps the evaluation honest. | Requires a GitHub token; large repos take minutes to fetch. |
+| **pydantic-ai, model as a config string** | Typed outputs, output validators with retry, usage limits, and testable with scripted models. Changing provider is one environment variable. | Defaults tuned for Gemini 3.5 Flash-Lite. |
+
+## Evaluation
+
+`evals/` holds a 56-question set over two pinned repositories, **httpx** (Python) and **got** (TypeScript),
+covering *what / how / where* questions, call-chain and import *topology* questions, *why* questions answered
+from project history, and *unanswerable* questions where the right behaviour is to say no documented rationale
+exists (9 of the 56). Three questions have false premises that the system should correct.
+
+The set started from this project's original question bank, and every reference answer was re-checked
+against the pinned source, docs and GitHub threads. **That audit changed 23 of the 56 questions.** Some answers were
+wrong (e.g. "`None` disables a mount", a non-existent `source/as-stream/` directory, "six hooks" when there are
+seven), some "why" answers cited reasons that appear nowhere in the project, and several "unanswerable" questions
+turned out to be answerable from the CHANGELOG, from issue threads or from code comments. Two of those corrections
+came *from the system*: in run 1 the agent cited evidence for W10 and Y12 that the manual curation had missed.
+Each entry records what was checked, and what changed, in its `verification` field.
+
+Two scripts, both reproducible from the pinned commits:
+
+- `evals/retrieval_eval.py`: BM25 vs dense vs hybrid retrieval, measured against line-level gold evidence.
+  No LLM involved.
+- `evals/run_eval.py`: the agent vs the single-shot baseline, end to end. A stronger model than the agent grades
+  each answer: **correctness** (coverage of key facts from the reference), **abstention** (did it decline
+  when it should, and only then), and **groundedness** (each claim checked against *only the evidence the system
+  cited*, so a correct answer from the model's prior knowledge still counts as ungrounded). It also records
+  whether the gold evidence was retrieved and cited, latency, LLM calls, tool calls and tokens.
+
+<!-- EVAL_DETAILS -->
+
+## Quick start
+
+You need a [Gemini API key](https://aistudio.google.com/apikey) (the free tier works) and, for issue/PR/discussion
+history, a GitHub token.
+
+```bash
+cp .env.example .env        # add GEMINI_API_KEY and GITHUB_TOKEN
+```
+
+### Docker
+
+```bash
+docker compose up --build   # http://localhost:8000
+# index a repo from the UI, or:
+docker compose exec app repo-assist ingest pallets/itsdangerous
+```
+
+### Local
+
+```bash
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+cd frontend && npm ci && npm run build && cd ..
+
+repo-assist ingest encode/httpx --ref b5addb64f0161ff6bfe94c124ef76f6a1fba5254
+repo-assist ask httpx "Where does httpx decode response text using the Content-Type charset?"
+repo-assist ask httpx "..." --mode single_shot      # the baseline, for comparison
+repo-assist serve                                    # web UI + API on http://127.0.0.1:8000
+```
+
+For frontend development, run `npm run dev` in `frontend/` (it proxies `/api` to port 8000).
+
+### API
+
+| Method | Path | |
+|---|---|---|
+| `GET` | `/api/repos` | List repositories with status and index stats |
+| `POST` | `/api/repos` | `{"url": "owner/name", "ref": "optional"}`: index in the background (202) |
+| `GET` | `/api/repos/{id}` | Status, current stage, stats |
+| `POST` | `/api/repos/{id}/ask` | `{"question": "...", "mode": "agent" \| "single_shot"}`: JSON answer with citations, trace and usage |
+| `POST` | `/api/repos/{id}/ask/stream` | Same, as server-sent events: `tool_call`, `tool_result`, `answer`, `done` |
+
+Interactive docs are at `/docs`.
+
+### Reproducing the evaluation
+
+```bash
+repo-assist ingest encode/httpx      --ref b5addb64f0161ff6bfe94c124ef76f6a1fba5254
+repo-assist ingest sindresorhus/got  --ref 66ca4e025622e1dd71f4e4f13aa6e1b79d61b069
+python evals/retrieval_eval.py       # writes evals/results/retrieval.{json,md}
+python evals/run_eval.py             # writes evals/results/runs/*.jsonl and summary.{json,md}; resumable
+pytest                               # offline unit/integration tests
+```
+
+## Project layout
+
+```text
+src/repo_assist/
+  ingest/        clone, tree-sitter parsing, doc chunking, git + GitHub history, pipeline
+  store.py       SQLite schema (chunks, FTS5, vectors, symbols, call sites)
+  embeddings.py  local ONNX embeddings with a content-hash cache
+  retrieval.py   BM25, dense, RRF fusion, symbol lookup, grep, file reads
+  agent.py       tools, evidence ledger, citation validator, agent + single-shot baseline
+  api.py         FastAPI (JSON + SSE) and static UI
+  cli.py         repo-assist ingest | ask | repos | serve
+frontend/        React + Vite UI
+evals/           question set, retrieval ablation, end-to-end eval, LLM judge, saved results
+tests/           offline tests (fixture git repo, hash embedder, scripted models)
+```
+
+## Limitations
+
+- **Indexing is slow on CPU.** Embedding is the bottleneck. A small library takes a few minutes; httpx with its
+  full history (about 6,000 chunks) took around 20 minutes on a 2015 dual-core laptop. Re-indexing reuses cached
+  embeddings.
+- **History coverage is bounded.** Up to 30 comments per thread are fetched. Rationale buried deeper in very long
+  threads, or kept outside GitHub (chat, external blog posts), is invisible, and the system will abstain.
+- **Call sites are matched by name, not resolved by type.** Good enough for an agent that verifies by reading, but
+  it is not a precise call graph.
+- **LLM judging is imperfect.** The judge is a stronger model of the same family as the agent, and it can be lenient
+  or strict at the margins. Per-question judgements are saved in `evals/results/runs/` for inspection. Model
+  outputs are not deterministic, so re-runs vary by a few points.
+- **Single-node.** Ingestion runs in one background worker inside the API process. Concurrent multi-user ingestion
+  would need a job queue.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+[MIT](LICENSE)
