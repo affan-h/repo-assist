@@ -1,5 +1,5 @@
 {
-  "description": "Evaluation questions for repo-assist. Repos are pinned: encode/httpx@b5addb64f0161ff6bfe94c124ef76f6a1fba5254 and sindresorhus/got@66ca4e025622e1dd71f4e4f13aa6e1b79d61b069. Derived from the project's original 56-question set; every reference answer was re-verified against the pinned source, docs and GitHub history (see `verification`). gold_evidence uses file line ranges or history refs; a retrieved chunk counts if it overlaps.",
+  "description": "Evaluation questions for repo-assist. `split`: `dev` questions were used while building the system (all 56 original questions, re-verified); `test` questions were written before the final system ran on them. Repos are pinned: encode/httpx@b5addb64f0161ff6bfe94c124ef76f6a1fba5254 and sindresorhus/got@66ca4e025622e1dd71f4e4f13aa6e1b79d61b069. Derived from the project's original 56-question set; every reference answer was re-verified against the pinned source, docs and GitHub history (see `verification`). gold_evidence uses file line ranges or history refs; a retrieved chunk counts if it overlaps.",
   "pins": {
     "httpx": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254",
     "got": "66ca4e025622e1dd71f4e4f13aa6e1b79d61b069"
@@ -20,7 +20,8 @@
       "gold_evidence": [
         "httpx/_client.py:760-769"
       ],
-      "verification": "httpx/_client.py:760-769 and :716 (sorted mounts)."
+      "verification": "httpx/_client.py:760-769 and :716 (sorted mounts).",
+      "split": "dev"
     },
     {
       "id": "W2",
@@ -38,7 +39,8 @@
         "httpx/_config.py:159-198",
         "httpx/_config.py:247-247"
       ],
-      "verification": "httpx/_config.py:173-182 (constructor defaults) and :247 (DEFAULT_LIMITS)."
+      "verification": "httpx/_config.py:173-182 (constructor defaults) and :247 (DEFAULT_LIMITS).",
+      "split": "dev"
     },
     {
       "id": "W3",
@@ -55,7 +57,8 @@
       "gold_evidence": [
         "docs/advanced/transports.md:86-94"
       ],
-      "verification": "docs/advanced/transports.md:86-93."
+      "verification": "docs/advanced/transports.md:86-93.",
+      "split": "dev"
     },
     {
       "id": "W4",
@@ -73,7 +76,8 @@
         "httpx/_client.py:340-389",
         "httpx/_client.py:771-825"
       ],
-      "verification": "httpx/_client.py:340-389; Client.request at :771-825 calls build_request then send."
+      "verification": "httpx/_client.py:340-389; Client.request at :771-825 calls build_request then send.",
+      "split": "dev"
     },
     {
       "id": "W5",
@@ -91,7 +95,8 @@
         "httpx/_client.py:639-716",
         "httpx/_client.py:760-769"
       ],
-      "verification": "Signature at httpx/_client.py:652; None handling at :767. CORRECTED: the original ground truth said None 'disables the transport', but _transport_for_url returns self._transport when the mounted value is None."
+      "verification": "Signature at httpx/_client.py:652; None handling at :767. CORRECTED: the original ground truth said None 'disables the transport', but _transport_for_url returns self._transport when the mounted value is None.",
+      "split": "dev"
     },
     {
       "id": "H1",
@@ -109,7 +114,8 @@
         "httpx/_transports/asgi.py:29-52",
         "docs/async.md:130-136"
       ],
-      "verification": "httpx/_transports/asgi.py:29-52; docs/async.md:130-135."
+      "verification": "httpx/_transports/asgi.py:29-52; docs/async.md:130-135.",
+      "split": "dev"
     },
     {
       "id": "H2",
@@ -128,7 +134,8 @@
         "httpx/_client.py:827-877",
         "httpx/_client.py:879-928"
       ],
-      "verification": "httpx/_client.py:868-877 and :920-928."
+      "verification": "httpx/_client.py:868-877 and :920-928.",
+      "split": "dev"
     },
     {
       "id": "H3",
@@ -146,7 +153,8 @@
         "httpx/_utils.py:205-223",
         "httpx/_client.py:639-716"
       ],
-      "verification": "httpx/_utils.py:205-223; httpx/_client.py:716."
+      "verification": "httpx/_utils.py:205-223; httpx/_client.py:716.",
+      "split": "dev"
     },
     {
       "id": "H4",
@@ -163,7 +171,8 @@
       "gold_evidence": [
         "httpx/_config.py:72-156"
       ],
-      "verification": "httpx/_config.py:72-138; httpx/_client.py:377."
+      "verification": "httpx/_config.py:72-138; httpx/_client.py:377.",
+      "split": "dev"
     },
     {
       "id": "H5",
@@ -179,7 +188,8 @@
       "gold_evidence": [
         "discussion#1633"
       ],
-      "verification": "discussion#1633 (maintainer reply). REWORDED: the original asked how the Client 'handles' thread safety and claimed it deliberately adds no locks, which is not documented."
+      "verification": "discussion#1633 (maintainer reply). REWORDED: the original asked how the Client 'handles' thread safety and claimed it deliberately adds no locks, which is not documented.",
+      "split": "dev"
     },
     {
       "id": "WH1",
@@ -196,7 +206,8 @@
       "gold_evidence": [
         "httpx/_client.py:457-473"
       ],
-      "verification": "httpx/_client.py:445-473."
+      "verification": "httpx/_client.py:445-473.",
+      "split": "dev"
     },
     {
       "id": "WH2",
@@ -213,7 +224,8 @@
       "gold_evidence": [
         "httpx/_models.py:641-697"
       ],
-      "verification": "httpx/_models.py:641-697."
+      "verification": "httpx/_models.py:641-697.",
+      "split": "dev"
     },
     {
       "id": "WH3",
@@ -230,7 +242,8 @@
       "gold_evidence": [
         "httpx/_utils.py:192-203"
       ],
-      "verification": "httpx/_utils.py:162-203."
+      "verification": "httpx/_utils.py:162-203.",
+      "split": "dev"
     },
     {
       "id": "WH4",
@@ -248,7 +261,8 @@
         "httpx/_client.py:879-928",
         "httpx/_client.py:125-136"
       ],
-      "verification": "httpx/_client.py:900-901 and :125-136."
+      "verification": "httpx/_client.py:900-901 and :125-136.",
+      "split": "dev"
     },
     {
       "id": "WH5",
@@ -265,7 +279,8 @@
       "gold_evidence": [
         "httpx/_transports/default.py:136-215"
       ],
-      "verification": "httpx/_transports/default.py:1-20 (module docstring) and :147-165."
+      "verification": "httpx/_transports/default.py:1-20 (module docstring) and :147-165.",
+      "split": "dev"
     },
     {
       "id": "Y1",
@@ -282,7 +297,8 @@
       "gold_evidence": [
         "issue#572"
       ],
-      "verification": "issue#572 body."
+      "verification": "issue#572 body.",
+      "split": "dev"
     },
     {
       "id": "Y2",
@@ -299,7 +315,8 @@
       "gold_evidence": [
         "discussion#1692"
       ],
-      "verification": "discussion#1692. REWORDED: the original asked why httpcore was split out and cited reasons not found in the docs or history."
+      "verification": "discussion#1692. REWORDED: the original asked why httpcore was split out and cited reasons not found in the docs or history.",
+      "split": "dev"
     },
     {
       "id": "Y3",
@@ -317,7 +334,8 @@
         "issue#1173",
         "issue#1274"
       ],
-      "verification": "issue#1173 and issue#1274 bodies."
+      "verification": "issue#1173 and issue#1274 bodies.",
+      "split": "dev"
     },
     {
       "id": "Y4",
@@ -338,7 +356,8 @@
         "httpx/_client.py:1001-1034",
         "CHANGELOG.md:292-320"
       ],
-      "verification": "httpx/_client.py:1014; CHANGELOG.md:292-320. CORRECTED: the original treated the context-manager premise (discussion #1530 proposal) as current."
+      "verification": "httpx/_client.py:1014; CHANGELOG.md:292-320. CORRECTED: the original treated the context-manager premise (discussion #1530 proposal) as current.",
+      "split": "dev"
     },
     {
       "id": "Y5",
@@ -355,7 +374,8 @@
       "gold_evidence": [
         "issue#2058"
       ],
-      "verification": "issue#2058, first maintainer comment. CORRECTED: the original cited discussion #1633 (which is about threads) and an event-loop-binding explanation that does not appear there."
+      "verification": "issue#2058, first maintainer comment. CORRECTED: the original cited discussion #1633 (which is about threads) and an event-loop-binding explanation that does not appear there.",
+      "split": "dev"
     },
     {
       "id": "Y7",
@@ -372,7 +392,8 @@
       "gold_evidence": [
         "issue#572"
       ],
-      "verification": "issue#572 comments 10, 15 and 23. REWORDED and CORRECTED: the original cited reasons (IDE confusion, ambiguous signatures) that are not in the thread."
+      "verification": "issue#572 comments 10, 15 and 23. REWORDED and CORRECTED: the original cited reasons (IDE confusion, ambiguous signatures) that are not in the thread.",
+      "split": "dev"
     },
     {
       "id": "U2",
@@ -389,7 +410,8 @@
       "gold_evidence": [
         "CHANGELOG.md:790-806"
       ],
-      "verification": "CHANGELOG.md:792-804. CORRECTED: originally labelled unanswerable, but the CHANGELOG states the rationale."
+      "verification": "CHANGELOG.md:792-804. CORRECTED: originally labelled unanswerable, but the CHANGELOG states the rationale.",
+      "split": "dev"
     },
     {
       "id": "U3",
@@ -410,7 +432,8 @@
         "httpx/_utils.py:205-223",
         "httpx/_client.py:639-716"
       ],
-      "verification": "httpx/_client.py:716; httpx/_utils.py:205-223. CORRECTED: originally an 'unanswerable' question whose premise contradicts the code."
+      "verification": "httpx/_client.py:716; httpx/_utils.py:205-223. CORRECTED: originally an 'unanswerable' question whose premise contradicts the code.",
+      "split": "dev"
     },
     {
       "id": "T1",
@@ -430,7 +453,16 @@
         "httpx/_client.py:879-999",
         "httpx/_transports/default.py:230-259"
       ],
-      "verification": "httpx/_client.py:771-1063; httpx/_transports/default.py:230-250."
+      "verification": "httpx/_client.py:771-1063; httpx/_transports/default.py:230-250.",
+      "split": "dev",
+      "gold_mentions": [
+        "Client.request",
+        "Client.send",
+        "_send_handling_auth",
+        "_send_handling_redirects",
+        "_send_single_request",
+        "handle_request"
+      ]
     },
     {
       "id": "T2",
@@ -449,7 +481,13 @@
         "httpx/_api.py",
         "httpx/_main.py"
       ],
-      "verification": "grep of 'from ._client import' / 'from .._client import' over httpx/."
+      "verification": "grep of 'from ._client import' / 'from .._client import' over httpx/.",
+      "split": "dev",
+      "gold_mentions": [
+        "__init__.py",
+        "_api.py",
+        "_main.py"
+      ]
     },
     {
       "id": "T3",
@@ -468,7 +506,13 @@
         "httpx/_types.py:20-30",
         "httpx/__init__.py:1-10"
       ],
-      "verification": "grep of '_config import' over httpx/. CORRECTED: the original listed httpx/_transports/default.py, which does not import Timeout."
+      "verification": "grep of '_config import' over httpx/. CORRECTED: the original listed httpx/_transports/default.py, which does not import Timeout.",
+      "split": "dev",
+      "gold_mentions": [
+        "_client.py",
+        "_types.py",
+        "__init__.py"
+      ]
     },
     {
       "id": "W6",
@@ -486,7 +530,8 @@
         "source/create.ts:143-170",
         "documentation/10-instances.md:35-60"
       ],
-      "verification": "source/create.ts:143-170; documentation/10-instances.md."
+      "verification": "source/create.ts:143-170; documentation/10-instances.md.",
+      "split": "dev"
     },
     {
       "id": "W7",
@@ -505,7 +550,8 @@
       "gold_evidence": [
         "documentation/9-hooks.md:1-420"
       ],
-      "verification": "documentation/9-hooks.md. REWORDED: the original asked for 'the six hook points', but there are seven (beforeCache)."
+      "verification": "documentation/9-hooks.md. REWORDED: the original asked for 'the six hook points', but there are seven (beforeCache).",
+      "split": "dev"
     },
     {
       "id": "W8",
@@ -523,7 +569,8 @@
       "gold_evidence": [
         "documentation/4-pagination.md:20-60"
       ],
-      "verification": "documentation/4-pagination.md:20-51."
+      "verification": "documentation/4-pagination.md:20-51.",
+      "split": "dev"
     },
     {
       "id": "W9",
@@ -540,7 +587,8 @@
       "gold_evidence": [
         "documentation/7-retry.md:109-131"
       ],
-      "verification": "documentation/7-retry.md:109-131. CORRECTED: the original listed retryCount (it is attemptCount) and omitted retryOptions/retryAfter."
+      "verification": "documentation/7-retry.md:109-131. CORRECTED: the original listed retryCount (it is attemptCount) and omitted retryOptions/retryAfter.",
+      "split": "dev"
     },
     {
       "id": "W10",
@@ -560,7 +608,8 @@
         "source/create.ts:320-330",
         "source/types.ts:15-37"
       ],
-      "verification": "documentation/10-instances.md:27-33; documentation/2-options.md:90-100; source/create.ts:326-328. CORRECTED after evaluation run 1: source/types.ts documents the access-token use case, which the first reference omitted."
+      "verification": "documentation/10-instances.md:27-33; documentation/2-options.md:90-100; source/create.ts:326-328. CORRECTED after evaluation run 1: source/types.ts documents the access-token use case, which the first reference omitted.",
+      "split": "dev"
     },
     {
       "id": "H6",
@@ -580,7 +629,8 @@
         "source/core/calculate-retry-delay.ts:5-40",
         "source/core/index.ts:468-560"
       ],
-      "verification": "source/core/calculate-retry-delay.ts; source/core/index.ts:495-540. CORRECTED: the original order (Retry-After, then calculateDelay, then backoff) did not match the code."
+      "verification": "source/core/calculate-retry-delay.ts; source/core/index.ts:495-540. CORRECTED: the original order (Retry-After, then calculateDelay, then backoff) did not match the code.",
+      "split": "dev"
     },
     {
       "id": "H7",
@@ -598,7 +648,8 @@
         "documentation/9-hooks.md:309-400",
         "source/as-promise/index.ts:85-145"
       ],
-      "verification": "documentation/9-hooks.md:309-400; source/as-promise/index.ts:110-139; calculate-retry-delay.ts:12-14."
+      "verification": "documentation/9-hooks.md:309-400; source/as-promise/index.ts:110-139; calculate-retry-delay.ts:12-14.",
+      "split": "dev"
     },
     {
       "id": "H8",
@@ -615,7 +666,8 @@
       "gold_evidence": [
         "documentation/4-pagination.md:116-136"
       ],
-      "verification": "documentation/4-pagination.md:116-127."
+      "verification": "documentation/4-pagination.md:116-127.",
+      "split": "dev"
     },
     {
       "id": "H9",
@@ -632,7 +684,8 @@
       "gold_evidence": [
         "source/core/options.ts:2196-2245"
       ],
-      "verification": "source/core/options.ts:2200-2245 ('Hook functions may be async and are run serially')."
+      "verification": "source/core/options.ts:2200-2245 ('Hook functions may be async and are run serially').",
+      "split": "dev"
     },
     {
       "id": "WH6",
@@ -650,7 +703,8 @@
         "source/core/calculate-retry-delay.ts:5-40",
         "source/core/index.ts:500-520"
       ],
-      "verification": "source/core/index.ts:503-515; calculate-retry-delay.ts:26-31."
+      "verification": "source/core/index.ts:503-515; calculate-retry-delay.ts:26-31.",
+      "split": "dev"
     },
     {
       "id": "WH7",
@@ -669,7 +723,8 @@
         "source/core/options.ts:2208-2245",
         "source/create.ts:143-170"
       ],
-      "verification": "source/create.ts:143-170; source/core/options.ts:1501-1554 and :2230-2243."
+      "verification": "source/create.ts:143-170; source/core/options.ts:1501-1554 and :2230-2243.",
+      "split": "dev"
     },
     {
       "id": "WH8",
@@ -686,7 +741,8 @@
       "gold_evidence": [
         "source/create.ts:71-136"
       ],
-      "verification": "source/create.ts:71-106 and :315. CORRECTED: the original cited source/as-stream/index.ts, which does not exist."
+      "verification": "source/create.ts:71-106 and :315. CORRECTED: the original cited source/as-stream/index.ts, which does not exist.",
+      "split": "dev"
     },
     {
       "id": "WH9",
@@ -703,7 +759,8 @@
       "gold_evidence": [
         "package.json:1-30"
       ],
-      "verification": "package.json:8-12."
+      "verification": "package.json:8-12.",
+      "split": "dev"
     },
     {
       "id": "T4",
@@ -724,7 +781,15 @@
         "source/as-promise/index.ts:1-20",
         "source/index.ts:1-25"
       ],
-      "verification": "grep of \"from './errors.js'\" / \"from '../core/errors.js'\" over source/."
+      "verification": "grep of \"from './errors.js'\" / \"from '../core/errors.js'\" over source/.",
+      "split": "dev",
+      "gold_mentions": [
+        "core/index.ts",
+        "core/options.ts",
+        "core/response.ts",
+        "diagnostics-channel.ts",
+        "as-promise/index.ts"
+      ]
     },
     {
       "id": "T5",
@@ -745,7 +810,15 @@
         "source/core/index.ts:2104-2362",
         "source/core/options.ts:3248-3363"
       ],
-      "verification": "source/create.ts:71-139; source/core/index.ts:425-447, 2306-2339; source/core/options.ts:3248-3363."
+      "verification": "source/create.ts:71-139; source/core/index.ts:425-447, 2306-2339; source/core/options.ts:3248-3363.",
+      "split": "dev",
+      "gold_mentions": [
+        "makeRequest",
+        "flush",
+        "_makeRequest",
+        "getRequestFunction",
+        "https.request"
+      ]
     },
     {
       "id": "T6",
@@ -765,7 +838,14 @@
         "source/as-promise/index.ts:1-20",
         "source/index.ts:1-25"
       ],
-      "verification": "grep of \"core/index.js'\" and \"from './index.js'\" over source/. CORRECTED: the original listed source/as-stream/index.ts, which does not exist."
+      "verification": "grep of \"core/index.js'\" and \"from './index.js'\" over source/. CORRECTED: the original listed source/as-stream/index.ts, which does not exist.",
+      "split": "dev",
+      "gold_mentions": [
+        "create.ts",
+        "as-promise/index.ts",
+        "types.ts",
+        "index.ts"
+      ]
     },
     {
       "id": "Y9",
@@ -782,7 +862,8 @@
       "gold_evidence": [
         "release:v9.0.0"
       ],
-      "verification": "release:v9.0.0 notes."
+      "verification": "release:v9.0.0 notes.",
+      "split": "dev"
     },
     {
       "id": "Y10",
@@ -801,7 +882,8 @@
       "gold_evidence": [
         "release:v10.0.0"
       ],
-      "verification": "release:v10.0.0 notes. CORRECTED: the original claimed a stated reason; the notes give none."
+      "verification": "release:v10.0.0 notes. CORRECTED: the original claimed a stated reason; the notes give none.",
+      "split": "dev"
     },
     {
       "id": "Y13",
@@ -817,7 +899,8 @@
       "gold_evidence": [
         "documentation/4-pagination.md:180-188"
       ],
-      "verification": "documentation/4-pagination.md:180-187."
+      "verification": "documentation/4-pagination.md:180-187.",
+      "split": "dev"
     },
     {
       "id": "Y14",
@@ -834,7 +917,8 @@
       "gold_evidence": [
         "release:v10.0.0"
       ],
-      "verification": "release:v10.0.0 notes ('Why: Many people were confused...'). REWORDED: the original asked why .json() is chained on the promise and cited reasons not found in any source."
+      "verification": "release:v10.0.0 notes ('Why: Many people were confused...'). REWORDED: the original asked why .json() is chained on the promise and cited reasons not found in any source.",
+      "split": "dev"
     },
     {
       "id": "Y11",
@@ -851,7 +935,8 @@
         "release:v12.0.0",
         "issue#1789"
       ],
-      "verification": "release:v12.0.0; issue#1789. Rationale only in an external gist. CORRECTED: the original asserted reasons from outside knowledge."
+      "verification": "release:v12.0.0; issue#1789. Rationale only in an external gist. CORRECTED: the original asserted reasons from outside knowledge.",
+      "split": "dev"
     },
     {
       "id": "Y12",
@@ -869,7 +954,8 @@
         "documentation/examples/advanced-creation.js:1-20",
         "PR#707"
       ],
-      "verification": "documentation/examples/advanced-creation.js:6-16; PR#707. CORRECTED after evaluation run 1: originally labelled unanswerable; curation had only searched Markdown docs and missed the rationale in the documentation examples."
+      "verification": "documentation/examples/advanced-creation.js:6-16; PR#707. CORRECTED after evaluation run 1: originally labelled unanswerable; curation had only searched Markdown docs and missed the rationale in the documentation examples.",
+      "split": "dev"
     },
     {
       "id": "Y6",
@@ -887,7 +973,8 @@
         "docs/quickstart.md:449-456",
         "docs/compatibility.md:148-156"
       ],
-      "verification": "docs/quickstart.md:451-455; docs/compatibility.md:148-156. CORRECTED after evaluation run 2: originally labelled unanswerable, but the quickstart states the purpose of default timeouts (the agent cited it)."
+      "verification": "docs/quickstart.md:451-455; docs/compatibility.md:148-156. CORRECTED after evaluation run 2: originally labelled unanswerable, but the quickstart states the purpose of default timeouts (the agent cited it).",
+      "split": "dev"
     },
     {
       "id": "Y8",
@@ -901,7 +988,8 @@
         "Ideally it mentions that caching is delegated to third-party packages such as Hishel"
       ],
       "gold_evidence": [],
-      "verification": "docs/compatibility.md:206-208; discussion#1693; history search. CORRECTED: the original asserted an FAQ rationale that does not exist."
+      "verification": "docs/compatibility.md:206-208; discussion#1693; history search. CORRECTED: the original asserted an FAQ rationale that does not exist.",
+      "split": "dev"
     },
     {
       "id": "U1",
@@ -914,7 +1002,8 @@
         "The system says no documented rationale for the specific 5 second value was found"
       ],
       "gold_evidence": [],
-      "verification": "History search (issue#435, PR#492, PR#593, PR#1085) and docs: the 5s default is stated, never justified."
+      "verification": "History search (issue#435, PR#492, PR#593, PR#1085) and docs: the 5s default is stated, never justified.",
+      "split": "dev"
     },
     {
       "id": "U4",
@@ -927,7 +1016,8 @@
         "The system says no documented naming rationale was found"
       ],
       "gold_evidence": [],
-      "verification": "History search: commit 2d09d5b36c / PR#129 rename from http3 to httpx without a stated reason."
+      "verification": "History search: commit 2d09d5b36c / PR#129 rename from http3 to httpx without a stated reason.",
+      "split": "dev"
     },
     {
       "id": "U5",
@@ -940,7 +1030,8 @@
         "The system says no documented rationale for the value 2 was found"
       ],
       "gold_evidence": [],
-      "verification": "History search (issue#417, PR#508, issue#1599, discussion#2065) and documentation/7-retry.md: the default is stated, never justified."
+      "verification": "History search (issue#417, PR#508, issue#1599, discussion#2065) and documentation/7-retry.md: the default is stated, never justified.",
+      "split": "dev"
     },
     {
       "id": "U6",
@@ -953,7 +1044,8 @@
         "The system says no documented rationale was found"
       ],
       "gold_evidence": [],
-      "verification": "History search (PR#696 introducing beforeError, issue#1712, issue#1353) and documentation/9-hooks.md: no stated reason for passing RequestError."
+      "verification": "History search (PR#696 introducing beforeError, issue#1712, issue#1353) and documentation/9-hooks.md: no stated reason for passing RequestError.",
+      "split": "dev"
     },
     {
       "id": "U7",
@@ -971,7 +1063,8 @@
         "issue#417",
         "PR#991"
       ],
-      "verification": "issue#417 (maintainer comment), PR#508, PR#991. CORRECTED: originally labelled unanswerable and listed only 7 of the 10 codes; the history documents the reasoning."
+      "verification": "issue#417 (maintainer comment), PR#508, PR#991. CORRECTED: originally labelled unanswerable and listed only 7 of the 10 codes; the history documents the reasoning.",
+      "split": "dev"
     },
     {
       "id": "U8",
@@ -987,7 +1080,8 @@
       "gold_evidence": [
         "issue#2115"
       ],
-      "verification": "issue#2115, issue#972, discussion#2290: users ask, a maintainer guesses; no authoritative answer."
+      "verification": "issue#2115, issue#972, discussion#2290: users ask, a maintainer guesses; no authoritative answer.",
+      "split": "dev"
     }
   ]
 }

@@ -44,14 +44,7 @@ You grade answers produced by a question-answering system over a code repository
 4. contradicts_reference: true if the answer asserts something incompatible with the reference answer."""
 
 
-_judge: Agent[None, Judgement] | None = None
-
-
-def get_judge() -> Agent[None, Judgement]:
-    global _judge
-    if _judge is None:
-        _judge = Agent(get_settings().judge_model, output_type=Judgement, instructions=INSTRUCTIONS, retries=2)
-    return _judge
+JUDGE = Agent(None, output_type=Judgement, instructions=INSTRUCTIONS, retries=2)
 
 
 def build_prompt(question: dict, answer: str, abstained: bool, cited: list[tuple[str, str]]) -> str:
@@ -67,8 +60,8 @@ def build_prompt(question: dict, answer: str, abstained: bool, cited: list[tuple
     )
 
 
-async def judge(question: dict, answer: str, abstained: bool, cited: list[tuple[str, str]]) -> Judgement:
-    result = await get_judge().run(build_prompt(question, answer, abstained, cited))
+async def judge(question: dict, answer: str, abstained: bool, cited: list[tuple[str, str]], model=None) -> Judgement:
+    result = await JUDGE.run(build_prompt(question, answer, abstained, cited), model=model or get_settings().judge_model)
     return result.output
 
 

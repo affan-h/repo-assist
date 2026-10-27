@@ -4,7 +4,7 @@ For each question with gold evidence, the question text is used as the query
 against the source/doc index (code gold) or the history index (history gold),
 and we record the rank of the first chunk that overlaps the gold evidence.
 
-    python evals/retrieval_eval.py            # writes evals/results/retrieval.{json,md}
+    python evals/retrieval_eval.py --split test     # writes evals/results/v2/test/retrieval.{json,md}
 """
 
 import argparse
@@ -25,11 +25,14 @@ DEPTH = 20
 def first_relevant_rank(question: dict, mode: str, conn) -> int | None:
     gold = gold_items(question)
     ranks = []
-    for kinds, group in ((retrieval.CODE_KINDS, [g for g in gold if not g.is_history]),
-                         (retrieval.HISTORY_KINDS, [g for g in gold if g.is_history])):
+    for history, group in ((False, [g for g in gold if not g.is_history]), (True, [g for g in gold if g.is_history])):
         if not group:
             continue
-        hits = retrieval.search(question["repo"], question["question"], kinds, k=DEPTH, mode=mode, conn=conn)
+        if history:  # same passage-aware search the agent's search_history tool uses
+            hits = retrieval.search_history(question["repo"], question["question"], k=DEPTH, mode=mode, conn=conn)
+        else:
+            hits = retrieval.search(question["repo"], question["question"], retrieval.CODE_KINDS, k=DEPTH,
+                                    mode=mode, conn=conn)
         for rank, hit in enumerate(hits, start=1):
             if any(g.matches(hit.ref) for g in group):
                 ranks.append(rank)
@@ -50,10 +53,11 @@ def summarise(ranks: list[int | None]) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--split", choices=["dev", "test"], required=True)
     parser.add_argument("--repo")
     args = parser.parse_args()
 
-    questions = [q for q in load_questions(args.repo) if q.get("gold_evidence")]
+    questions = [q for q in load_questions(args.repo, split=args.split) if q.get("gold_evidence")]
     rows = []
     with store.session() as conn:
         for q in questions:
@@ -68,9 +72,10 @@ def main() -> None:
                "history": [r for r in rows if r["history"]]}
     summary = {name: {m: summarise([r[m] for r in subset]) for m in MODES}
                for name, subset in subsets.items() if subset}
-    RESULTS_DIR.mkdir(exist_ok=True)
-    (RESULTS_DIR / "retrieval.json").write_text(json.dumps({"summary": summary, "questions": rows}, indent=2))
-    (RESULTS_DIR / "retrieval.md").write_text(render(summary))
+    out_dir = RESULTS_DIR / "v2" / args.split
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "retrieval.json").write_text(json.dumps({"summary": summary, "questions": rows}, indent=2))
+    (out_dir / "retrieval.md").write_text(render(summary))
     print("\n" + render(summary))
 
 

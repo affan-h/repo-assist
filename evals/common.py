@@ -34,8 +34,10 @@ class Gold:
         return int(other["start"]) <= int(gold["end"]) and int(gold["start"]) <= int(other["end"])
 
 
-def load_questions(repo: str | None = None, ids: list[str] | None = None) -> list[dict]:
+def load_questions(repo: str | None = None, ids: list[str] | None = None, split: str | None = None) -> list[dict]:
     questions = json.loads(DATASET.read_text())["questions"]
+    if split:
+        questions = [q for q in questions if q.get("split") == split]
     if repo:
         questions = [q for q in questions if q["repo"] == repo]
     if ids:
