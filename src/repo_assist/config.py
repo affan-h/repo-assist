@@ -19,6 +19,7 @@ class Settings:
     github_token: str | None
     max_threads: int
     max_commits: int
+    model_cache_dir: Path
 
     @property
     def db_path(self) -> Path:
@@ -28,10 +29,6 @@ class Settings:
     def repos_dir(self) -> Path:
         return self.data_dir / "repos"
 
-    @property
-    def model_cache_dir(self) -> Path:
-        return self.data_dir / "models"
-
 
 @lru_cache
 def get_settings() -> Settings:
@@ -40,10 +37,12 @@ def get_settings() -> Settings:
     return Settings(
         data_dir=data_dir,
         agent_model=os.environ.get("REPO_ASSIST_AGENT_MODEL", "google:gemini-3.5-flash-lite"),
-        judge_model=os.environ.get("REPO_ASSIST_JUDGE_MODEL", "google:gemini-3.5-flash"),
+        # Free-tier friendly default; set a stronger or different-family model to reduce judge bias.
+        judge_model=os.environ.get("REPO_ASSIST_JUDGE_MODEL", "google:gemini-3.5-flash-lite"),
         embedding_model=os.environ.get("REPO_ASSIST_EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5"),
         github_token=os.environ.get("GITHUB_TOKEN") or None,
-        # Upper bounds on history ingestion. Threads = issues + PRs + discussions.
+        # Upper bounds on history ingestion. Threads = releases + issues + PRs + discussions.
         max_threads=int(os.environ.get("REPO_ASSIST_MAX_THREADS", "8000")),
         max_commits=int(os.environ.get("REPO_ASSIST_MAX_COMMITS", "5000")),
+        model_cache_dir=Path(os.environ.get("REPO_ASSIST_MODEL_DIR", data_dir / "models")),
     )

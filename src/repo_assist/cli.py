@@ -26,7 +26,8 @@ def _repos(args) -> int:
     if not repos:
         print("No repositories ingested yet. Try: repo-assist ingest encode/httpx")
     for r in repos:
-        counts = ", ".join(f"{k}={v}" for k, v in r["stats"].items() if k != "ingest_seconds")
+        counts = ", ".join(f"{k}={v}" for k, v in r["stats"].items() if k not in ("ingest_seconds", "warnings"))
+        counts += "".join(f"\n{'':<16} warning: {w}" for w in r["stats"].get("warnings", []))
         print(f"{r['id']:<16} {r['status']:<10} {r['owner']}/{r['name']}@{(r['commit_sha'] or '')[:10]}  {counts}")
     return 0
 

@@ -31,6 +31,8 @@ SNIPPET_LINES = 30
 THREAD_PAGE_CHARS = 6000
 HISTORY_PREVIEW_CHARS = 700
 AGENT_LIMITS = UsageLimits(request_limit=12, tool_calls_limit=15)
+REPEAT_MESSAGE = ("You already made this exact call; its results are earlier in the conversation. "
+                  "Use different terms, another tool, or answer with the evidence you have.")
 
 
 class Answer(BaseModel):
@@ -104,6 +106,7 @@ class Deps:
     repo: dict
     evidence: dict[str, Evidence] = field(default_factory=dict)
     trace: dict[str, ToolCall] = field(default_factory=dict)
+    seen_calls: set[str] = field(default_factory=set)
 
     @property
     def repo_id(self) -> str:
@@ -113,6 +116,15 @@ class Deps:
         existing = self.evidence.get(item.ref)
         if existing is None or len(item.text) > len(existing.text):
             self.evidence[item.ref] = item
+
+    def is_repeat(self, ctx: RunContext, tool: str, args: dict) -> bool:
+        """Small models sometimes loop on an identical call; tell them instead of re-running it."""
+        key = f"{tool}:{sorted(args.items())}"
+        if key in self.seen_calls:
+            self.record(ctx, tool, args, "repeated call skipped", [], time.monotonic())
+            return True
+        self.seen_calls.add(key)
+        return False
 
     def record(self, ctx: RunContext, tool: str, args: dict, summary: str, refs: list[str], started: float):
         call_id = ctx.tool_call_id or f"call-{len(self.trace)}"
@@ -205,6 +217,8 @@ def _format_history_hit(hit: retrieval.Hit) -> str:
 def search_code(ctx: RunContext[Deps], query: str) -> str:
     """Hybrid (keyword + semantic) search over the repository's source code and documentation.
     Returns the best-matching chunks with their refs. Use natural language or identifiers."""
+    if ctx.deps.is_repeat(ctx, "search_code", {"query": query}):
+        return REPEAT_MESSAGE
     started = time.monotonic()
     hits = retrieval.search(ctx.deps.repo_id, query, retrieval.CODE_KINDS, k=SEARCH_RESULTS)
     for hit in hits:
@@ -218,6 +232,8 @@ def search_history(ctx: RunContext[Deps], query: str) -> str:
     release notes.
     Use for questions about why something was designed or changed. Snippets are truncated;
     use read_thread to see a full thread."""
+    if ctx.deps.is_repeat(ctx, "search_history", {"query": query}):
+        return REPEAT_MESSAGE
     started = time.monotonic()
     hits = retrieval.search(ctx.deps.repo_id, query, retrieval.HISTORY_KINDS, k=SEARCH_RESULTS)
     for hit in hits:
@@ -227,12 +243,21 @@ def search_history(ctx: RunContext[Deps], query: str) -> str:
     return "\n\n".join(_format_history_hit(h) for h in hits) or "No results."
 
 
+def _ref_candidates(ref: str) -> list[str]:
+    """Accept loose release refs: 'v9.0.0', '9.0.0', 'release:9.0.0' -> 'release:v9.0.0' etc."""
+    ref = normalise_ref(ref)
+    tag = ref[len("release:"):] if ref.lower().startswith("release:") else ref
+    if ref.lower().startswith("release:") or re.match(r"^v?\d+(\.\d+)+", ref):
+        return [ref, f"release:{tag}", f"release:v{tag.lstrip('v')}", f"release:{tag.lstrip('v')}"]
+    return [ref]
+
+
 def read_thread(ctx: RunContext[Deps], ref: str, offset: int = 0) -> str:
     """Read an issue, pull request, discussion (with comments), release notes or commit message by
     ref, e.g. 'PR#1274', 'issue#572', 'discussion#1633', 'release:v10.0.0', 'commit:b5addb64f0'. Long threads are
     returned in pages; pass the offset given at the end of a page to continue."""
     started = time.monotonic()
-    hit = retrieval.get_chunk(ctx.deps.repo_id, normalise_ref(ref))
+    hit = next(filter(None, (retrieval.get_chunk(ctx.deps.repo_id, r) for r in _ref_candidates(ref))), None)
     if hit is None or hit.kind not in retrieval.HISTORY_KINDS:
         ctx.deps.record(ctx, "read_thread", {"ref": ref}, "not found", [], started)
         return f"No issue/PR/discussion/release/commit with ref {ref!r} is indexed."
@@ -257,6 +282,8 @@ def read_thread(ctx: RunContext[Deps], ref: str, offset: int = 0) -> str:
 def find_symbol(ctx: RunContext[Deps], name: str) -> str:
     """Find where a function/class/method is defined (with its code) and where it is called.
     Accepts 'name', 'Class.method' or 'module.Class.method'."""
+    if ctx.deps.is_repeat(ctx, "find_symbol", {"name": name}):
+        return REPEAT_MESSAGE
     started = time.monotonic()
     definitions = retrieval.find_definitions(ctx.deps.repo_id, name)
     callers = retrieval.find_callers(ctx.deps.repo_id, name)
@@ -311,6 +338,8 @@ def read_file(ctx: RunContext[Deps], path: str, start_line: int = 1, end_line: i
 def grep(ctx: RunContext[Deps], pattern: str, path_glob: str | None = None) -> str:
     """Regex search (Python syntax) over every tracked file, e.g. pattern 'def build_request',
     path_glob 'httpx/*.py'. Best for exact identifiers, imports and string literals."""
+    if ctx.deps.is_repeat(ctx, "grep", {"pattern": pattern, "path_glob": path_glob}):
+        return REPEAT_MESSAGE
     started = time.monotonic()
     try:
         matches, total = retrieval.grep(ctx.deps.repo_id, pattern, path_glob)
@@ -357,7 +386,7 @@ Investigate with tools before answering:
 - find_symbol: definition and call sites of a named function/class/method.
 - read_file / grep: verify details in the actual code, follow calls, find imports or literals.
 - search_history / read_thread: commits, issues, PRs, discussions and release notes; use for "why" and
-  "when" questions.
+  "when" questions. For a specific version, read its notes directly: read_thread('release:v<version>').
 Search results are excerpts: read the code before relying on details. Stop once the evidence is
 sufficient (usually 2-6 tool calls).
 
@@ -434,9 +463,28 @@ def _citations(repo: dict, refs: list[str], evidence: dict[str, Evidence]) -> li
     return citations
 
 
-def _usage_dict(usage) -> dict:
-    return {"requests": usage.requests, "tool_calls": usage.tool_calls,
-            "input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens}
+def _usage_dict(*usages) -> dict:
+    usages = [u for u in usages if u is not None]
+    return {key: sum(getattr(u, key) for u in usages)
+            for key in ("requests", "tool_calls", "input_tokens", "output_tokens")}
+
+
+async def _answer_from_gathered_evidence(deps: Deps, question: str, model) -> tuple[Answer | None, object]:
+    """Final, tool-less answer over the evidence the agent collected before its budget ran out."""
+    blocks, size = [], 0
+    for item in reversed(list(deps.evidence.values())):  # most recent evidence first
+        block = f"[{item.ref}] {item.title or ''}\n{item.text[:2000]}"
+        if size + len(block) > 40_000:
+            break
+        blocks.append(block)
+        size += len(block)
+    prompt = (f"Question: {question}\n\nEvidence gathered while investigating (the investigation ran out of "
+              f"steps; answer from this evidence or abstain):\n\n" + "\n\n".join(blocks))
+    try:
+        result = await AGENTS["single_shot"].run(prompt, model=model, deps=deps)
+        return result.output, result.usage
+    except UnexpectedModelBehavior:
+        return None, None
 
 
 def _single_shot_context(deps: Deps, question: str) -> str:
@@ -479,18 +527,21 @@ async def answer(repo_id: str, question: str, mode: Mode = "agent", model: "str 
     else:
         prompt = f"Question: {question}\n\nRetrieved evidence:\n\n{_single_shot_context(deps, question)}"
 
-    output, error, run = None, None, None
+    model = model or get_settings().agent_model
+    output, error, run, usage = None, None, None, None
     try:
-        async with AGENTS[mode].iter(prompt, model=model or get_settings().agent_model, deps=deps,
-                                     usage_limits=AGENT_LIMITS) as run:
+        async with AGENTS[mode].iter(prompt, model=model, deps=deps, usage_limits=AGENT_LIMITS) as run:
             async for node in run:
                 if Agent.is_call_tools_node(node):
                     async with node.stream(run.ctx) as events:
                         async for event in events:
                             _emit_tool_event(event, deps, emit)
             output = run.result.output
-    except UsageLimitExceeded as exc:
-        error = f"Stopped at step budget: {exc}"
+    except UsageLimitExceeded:
+        # Out of steps: answer from what was gathered rather than returning nothing.
+        error = "Step budget reached; answered from the evidence gathered so far"
+        if deps.evidence:
+            output, usage = await _answer_from_gathered_evidence(deps, question, model)
     except UnexpectedModelBehavior as exc:  # e.g. citations still invalid after all retries
         error = f"Model failed to produce a valid answer: {exc}"
 
@@ -500,7 +551,8 @@ async def answer(repo_id: str, question: str, mode: Mode = "agent", model: "str 
         question=question, repo_id=repo_id, mode=mode, answer=output.answer,
         citations=_citations(repo, output.citations, deps.evidence), abstained=output.abstained,
         trace=list(deps.trace.values()), evidence=deps.evidence,
-        usage=_usage_dict(run.usage) if run else {}, latency_s=round(time.monotonic() - started, 2), error=error,
+        usage=_usage_dict(run.usage, usage) if run else {}, latency_s=round(time.monotonic() - started, 2),
+        error=error,
     )
     emit({"type": "answer", "result": final.to_dict()})
     return final

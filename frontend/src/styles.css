@@ -53,6 +53,7 @@ a:hover { text-decoration: underline; }
 .muted { color: var(--muted); }
 .small { font-size: 0.85em; }
 .error-text { color: var(--danger); }
+.warn-text { color: var(--warn); }
 
 .layout { display: grid; grid-template-columns: 300px 1fr; min-height: 100vh; }
 

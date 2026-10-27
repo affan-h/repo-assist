@@ -111,3 +111,27 @@ def test_reingest_replaces_index(ingested_repo):
     with store.session() as conn:
         assert conn.execute("SELECT count(*) FROM chunks").fetchone()[0] == before
         assert conn.execute("SELECT count(*) FROM chunks_fts").fetchone()[0] == before
+
+
+def test_github_failure_degrades_to_code_and_commits(data_dir, fixture_repo, monkeypatch):
+    import httpx
+
+    from repo_assist import ingest
+    from repo_assist.config import get_settings
+    from repo_assist.ingest import github
+    from tests.conftest import HashEmbedder
+
+    monkeypatch.setenv("GITHUB_TOKEN", "invalid")
+    get_settings.cache_clear()
+
+    def unauthorized(*args, **kwargs):
+        request = httpx.Request("POST", github.GRAPHQL_URL)
+        raise httpx.HTTPStatusError("401 Bad credentials", request=request, response=httpx.Response(401, request=request))
+
+    monkeypatch.setattr(github, "fetch_thread_chunks", unauthorized)
+    monkeypatch.setattr(git, "clone", lambda owner, name, dest, ref=None: git.Checkout(
+        path=fixture_repo, sha="0" * 40, date="2026-01-01T00:00:00+00:00"))
+    repo_id = ingest.register_repo("acme/widget")
+    stats = ingest.ingest(repo_id, embedder=HashEmbedder())
+    assert stats["commit"] == 1 and stats["code"] > 0
+    assert "GitHub history skipped" in stats["warnings"][0]

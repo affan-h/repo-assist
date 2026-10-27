@@ -28,6 +28,11 @@ function RepoItem({ repo, selected, onSelect }) {
             {history} history items
           </span>
         )}
+        {stats.warnings?.length > 0 && (
+          <span className="repo-meta warn-text" title={stats.warnings.join('\n')}>
+            ⚠ {stats.warnings.length === 1 ? 'Partial index (hover for details)' : `${stats.warnings.length} warnings`}
+          </span>
+        )}
       </button>
     </li>
   );

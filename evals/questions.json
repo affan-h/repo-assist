@@ -1,0 +1,991 @@
+{
+  "description": "Evaluation questions for repo-assist. Repos are pinned: encode/httpx@b5addb64f0161ff6bfe94c124ef76f6a1fba5254 and sindresorhus/got@66ca4e025622e1dd71f4e4f13aa6e1b79d61b069. Derived from the project's original 56-question set; every reference answer was re-verified against the pinned source, docs and GitHub history (see `verification`). gold_evidence uses file line ranges or history refs; a retrieved chunk counts if it overlaps.",
+  "pins": {
+    "httpx": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254",
+    "got": "66ca4e025622e1dd71f4e4f13aa6e1b79d61b069"
+  },
+  "questions": [
+    {
+      "id": "W1",
+      "repo": "httpx",
+      "category": "what",
+      "expected": "answer",
+      "question": "What does the `_transport_for_url` method in `httpx/_client.py` do, and what does it return when no mount pattern matches the URL?",
+      "reference_answer": "It iterates over the client's mounts (URLPattern -> transport) and returns the transport of the first pattern that matches the URL (the default transport if that mount's value is None). If no pattern matches it returns the client's default transport, self._transport. The mounts dict is sorted by pattern specificity in Client.__init__, so the most specific pattern is tried first.",
+      "key_facts": [
+        "It iterates the client's mounts and returns the transport for the first URL pattern that matches",
+        "When no pattern matches it returns the default transport (self._transport)",
+        "Mounts are pre-sorted by specificity, so more specific patterns are checked first"
+      ],
+      "gold_evidence": [
+        "httpx/_client.py:760-769"
+      ],
+      "verification": "httpx/_client.py:760-769 and :716 (sorted mounts)."
+    },
+    {
+      "id": "W2",
+      "repo": "httpx",
+      "category": "what",
+      "expected": "answer",
+      "question": "What three connection-count parameters does the `Limits` class control, and what default values does an httpx client use for them?",
+      "reference_answer": "Limits controls max_connections, max_keepalive_connections and keepalive_expiry. Clients use DEFAULT_LIMITS = Limits(max_connections=100, max_keepalive_connections=20) with keepalive_expiry defaulting to 5.0 seconds. (The Limits constructor itself defaults the two counts to None, meaning no limit.)",
+      "key_facts": [
+        "max_connections defaults to 100 for clients",
+        "max_keepalive_connections defaults to 20 for clients",
+        "keepalive_expiry defaults to 5.0 seconds"
+      ],
+      "gold_evidence": [
+        "httpx/_config.py:159-198",
+        "httpx/_config.py:247-247"
+      ],
+      "verification": "httpx/_config.py:173-182 (constructor defaults) and :247 (DEFAULT_LIMITS)."
+    },
+    {
+      "id": "W3",
+      "repo": "httpx",
+      "category": "what",
+      "expected": "answer",
+      "question": "What is `ASGITransport`, and what two use cases does the official documentation explicitly identify for it?",
+      "reference_answer": "ASGITransport lets an httpx client call directly into an async Python web application using the ASGI protocol, without a network hop. The docs list two use cases: using httpx as a client inside test cases, and mocking out external services during tests or in dev/staging environments.",
+      "key_facts": [
+        "It sends requests directly into an ASGI application (no network)",
+        "Use case: using httpx as a client inside test cases",
+        "Use case: mocking out external services during tests or in dev or staging environments"
+      ],
+      "gold_evidence": [
+        "docs/advanced/transports.md:86-94"
+      ],
+      "verification": "docs/advanced/transports.md:86-93."
+    },
+    {
+      "id": "W4",
+      "repo": "httpx",
+      "category": "what",
+      "expected": "answer",
+      "question": "What does `BaseClient.build_request()` return, and at what point in the request lifecycle is it called relative to actually sending the request?",
+      "reference_answer": "It returns an httpx.Request built by merging the call's URL, params, headers, cookies and content with the client defaults (and storing the timeout in request.extensions['timeout']). It runs before sending: Client.request() calls build_request() and then passes the resulting Request to send().",
+      "key_facts": [
+        "It returns an httpx Request object",
+        "It merges per-request parameters with the client's defaults",
+        "It is called before the request is sent: request() builds the Request, then calls send()"
+      ],
+      "gold_evidence": [
+        "httpx/_client.py:340-389",
+        "httpx/_client.py:771-825"
+      ],
+      "verification": "httpx/_client.py:340-389; Client.request at :771-825 calls build_request then send."
+    },
+    {
+      "id": "W5",
+      "repo": "httpx",
+      "category": "what",
+      "expected": "answer",
+      "question": "What does the `mounts` parameter on `httpx.Client.__init__` accept, and what are the types of its keys and values?",
+      "reference_answer": "A mapping from URL pattern strings (e.g. 'https://', 'all://', 'http://example.com') to transports: typing.Mapping[str, BaseTransport | None]. Keys become URLPattern objects. A value of None means requests matching that pattern use the client's default transport (this is how proxies are disabled for a pattern).",
+      "key_facts": [
+        "Keys are URL pattern strings such as 'https://' or 'all://'",
+        "Values are transport instances (BaseTransport) or None",
+        "A None value makes matching requests use the client's default transport"
+      ],
+      "gold_evidence": [
+        "httpx/_client.py:639-716",
+        "httpx/_client.py:760-769"
+      ],
+      "verification": "Signature at httpx/_client.py:652; None handling at :767. CORRECTED: the original ground truth said None 'disables the transport', but _transport_for_url returns self._transport when the mounted value is None."
+    },
+    {
+      "id": "H1",
+      "repo": "httpx",
+      "category": "how",
+      "expected": "answer",
+      "question": "How does httpx support both asyncio and trio as async backends without statically importing or coupling to either at module load time?",
+      "reference_answer": "httpx auto-detects the running async library at runtime instead of importing a backend up front. The docs say it auto-detects asyncio or trio for socket operations and concurrency primitives (the network layer is httpcore). In httpx's own ASGITransport, is_running_trio() uses sniffio.current_async_library() at call time and create_event() imports trio or asyncio lazily inside the function.",
+      "key_facts": [
+        "The async backend is detected at runtime rather than imported at module load",
+        "Detection uses sniffio.current_async_library() (is_running_trio in the ASGI transport)",
+        "trio/asyncio are imported lazily inside functions such as create_event"
+      ],
+      "gold_evidence": [
+        "httpx/_transports/asgi.py:29-52",
+        "docs/async.md:130-136"
+      ],
+      "verification": "httpx/_transports/asgi.py:29-52; docs/async.md:130-135."
+    },
+    {
+      "id": "H2",
+      "repo": "httpx",
+      "category": "how",
+      "expected": "answer",
+      "question": "How does httpx's streaming response (`client.stream(...)`) prevent the entire response body from being loaded into memory before the caller accesses it?",
+      "reference_answer": "Client.stream() is a context manager that builds the request and calls send(..., stream=True). send() only calls response.read() when stream is False, so in streaming mode the body stays an unread byte stream that the caller consumes incrementally (iter_bytes/iter_raw). When the context exits, stream() calls response.close(), which closes the underlying stream and releases the connection.",
+      "key_facts": [
+        "stream() calls send() with stream=True",
+        "send() only reads the body (response.read()) when stream is False",
+        "The caller iterates the body incrementally (e.g. iter_bytes)",
+        "The response is closed when the context manager exits"
+      ],
+      "gold_evidence": [
+        "httpx/_client.py:827-877",
+        "httpx/_client.py:879-928"
+      ],
+      "verification": "httpx/_client.py:868-877 and :920-928."
+    },
+    {
+      "id": "H3",
+      "repo": "httpx",
+      "category": "how",
+      "expected": "answer",
+      "question": "How does httpx determine priority when two mount patterns both match a URL -- for example, `\"https://\"` and `\"https://example.com\"`?",
+      "reference_answer": "Client.__init__ sorts the mounts with dict(sorted(self._mounts.items())). URLPattern defines __lt__ via a priority property: (0 if a port is specified else 1, -len(host), -len(scheme)), so patterns with a port, then longer hosts, then longer schemes sort first. _transport_for_url returns the first match, so 'https://example.com' wins over 'https://'.",
+      "key_facts": [
+        "Mounts are sorted in Client.__init__",
+        "URLPattern.priority orders by port presence, then host length, then scheme length",
+        "The first (most specific) matching pattern is used, so https://example.com beats https://"
+      ],
+      "gold_evidence": [
+        "httpx/_utils.py:205-223",
+        "httpx/_client.py:639-716"
+      ],
+      "verification": "httpx/_utils.py:205-223; httpx/_client.py:716."
+    },
+    {
+      "id": "H4",
+      "repo": "httpx",
+      "category": "how",
+      "expected": "answer",
+      "question": "How does httpx's `Timeout` class allow different timeout durations for connect, read, write, and pool-acquire operations independently on a single request?",
+      "reference_answer": "Timeout stores four separate values: connect, read, write and pool. A single number sets all four, and keyword arguments override individual ones (e.g. Timeout(5.0, connect=10.0)). The client stores timeout.as_dict() in request.extensions['timeout'], which the transport layer uses for each phase.",
+      "key_facts": [
+        "Timeout has separate connect, read, write and pool values",
+        "A single value applies to all four, with keyword overrides for individual ones",
+        "The timeout is attached to the request as request.extensions['timeout'] via as_dict()"
+      ],
+      "gold_evidence": [
+        "httpx/_config.py:72-156"
+      ],
+      "verification": "httpx/_config.py:72-138; httpx/_client.py:377."
+    },
+    {
+      "id": "H5",
+      "repo": "httpx",
+      "category": "how",
+      "expected": "answer",
+      "question": "How should `httpx.Client` be used from multiple threads -- is a single client instance safe to share between threads?",
+      "reference_answer": "Yes. In discussion #1633 a maintainer states that HTTPX is intended to be thread-safe and that a single client instance shared across all threads will do better for connection pooling than an instance per thread.",
+      "key_facts": [
+        "httpx is intended to be thread-safe",
+        "Sharing a single client across threads is recommended because it pools connections better than one client per thread"
+      ],
+      "gold_evidence": [
+        "discussion#1633"
+      ],
+      "verification": "discussion#1633 (maintainer reply). REWORDED: the original asked how the Client 'handles' thread safety and claimed it deliberately adds no locks, which is not documented."
+    },
+    {
+      "id": "WH1",
+      "repo": "httpx",
+      "category": "where",
+      "expected": "answer",
+      "question": "Where in the codebase is the logic that merges per-request `auth` with the client-level default `auth`?",
+      "reference_answer": "BaseClient._build_request_auth in httpx/_client.py: if the request's auth is USE_CLIENT_DEFAULT it uses self._auth, otherwise it builds the per-request auth with _build_auth; if neither is set it falls back to credentials in the URL (BasicAuth) or an empty Auth(). send() calls it before sending.",
+      "key_facts": [
+        "The merge happens in BaseClient._build_request_auth in httpx/_client.py",
+        "Per-request auth takes precedence; the client's self._auth is used when the request uses the client default",
+        "If neither is set it falls back to username/password in the URL, otherwise an empty Auth"
+      ],
+      "gold_evidence": [
+        "httpx/_client.py:457-473"
+      ],
+      "verification": "httpx/_client.py:445-473."
+    },
+    {
+      "id": "WH2",
+      "repo": "httpx",
+      "category": "where",
+      "expected": "answer",
+      "question": "Where does httpx decode response content according to the charset advertised in the `Content-Type` header?",
+      "reference_answer": "In httpx/_models.py on the Response class: the text property decodes content with a TextDecoder using self.encoding; the encoding property prefers an explicitly set encoding, then charset_encoding (the charset parsed from the Content-Type header), then the client's default_encoding.",
+      "key_facts": [
+        "Response.text in httpx/_models.py decodes the content",
+        "It uses a TextDecoder with the response's encoding",
+        "Response.encoding uses the Content-Type charset (charset_encoding) before falling back to default_encoding"
+      ],
+      "gold_evidence": [
+        "httpx/_models.py:641-697"
+      ],
+      "verification": "httpx/_models.py:641-697."
+    },
+    {
+      "id": "WH3",
+      "repo": "httpx",
+      "category": "where",
+      "expected": "answer",
+      "question": "Where is the URL pattern matching logic for mounts implemented -- specifically, the code that decides whether `\"https://\"` matches `https://example.com/path`?",
+      "reference_answer": "In the URLPattern class in httpx/_utils.py. URLPattern.matches(url) checks scheme, host (via a compiled host regex, supporting wildcards) and port; a pattern like 'https://' has no host or port so it matches any https URL.",
+      "key_facts": [
+        "The logic is URLPattern in httpx/_utils.py",
+        "URLPattern.matches compares scheme, host and port",
+        "A pattern with only a scheme matches any URL with that scheme"
+      ],
+      "gold_evidence": [
+        "httpx/_utils.py:192-203"
+      ],
+      "verification": "httpx/_utils.py:162-203."
+    },
+    {
+      "id": "WH4",
+      "repo": "httpx",
+      "category": "where",
+      "expected": "answer",
+      "question": "Where does httpx enforce that a closed client cannot send further requests?",
+      "reference_answer": "In Client.send (and AsyncClient.send) in httpx/_client.py: if self._state == ClientState.CLOSED it raises RuntimeError('Cannot send a request, as the client has been closed.'). ClientState is an enum with UNOPENED, OPENED and CLOSED.",
+      "key_facts": [
+        "send() checks whether the client state is ClientState.CLOSED",
+        "It raises a RuntimeError when the client is closed",
+        "ClientState has UNOPENED, OPENED and CLOSED values"
+      ],
+      "gold_evidence": [
+        "httpx/_client.py:879-928",
+        "httpx/_client.py:125-136"
+      ],
+      "verification": "httpx/_client.py:900-901 and :125-136."
+    },
+    {
+      "id": "WH5",
+      "repo": "httpx",
+      "category": "where",
+      "expected": "answer",
+      "question": "Where does retry logic live for httpx -- and if it doesn't exist at the `httpx` layer, where does it live and how is it exposed to users?",
+      "reference_answer": "httpx has no request-retry loop of its own. Retries are a transport option: httpx.HTTPTransport(retries=N) (and AsyncHTTPTransport) passes retries to httpcore's ConnectionPool, which retries failed connection attempts. Users enable it by passing such a transport to the client.",
+      "key_facts": [
+        "httpx itself does not implement a retry loop",
+        "Retries are configured with HTTPTransport(retries=...)",
+        "The value is passed to httpcore's connection pool"
+      ],
+      "gold_evidence": [
+        "httpx/_transports/default.py:136-215"
+      ],
+      "verification": "httpx/_transports/default.py:1-20 (module docstring) and :147-165."
+    },
+    {
+      "id": "Y1",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "question": "Why was sync support completely dropped in httpx 0.8, and what specific problems with the original approach caused it to be removed?",
+      "reference_answer": "Issue #572 explains that 0.8 dropped the sync interface because bridging sync onto an underlying async implementation had problems: Sync and Async variant classes subclassing Base classes led to poorer, less comprehensible code, and there were issues such as failing to run in environments that already provide top-level async support (e.g. Jupyter). The plan was to return using the unasync code-generation approach.",
+      "key_facts": [
+        "The sync-on-async bridging approach with Sync/Async subclasses produced poorer, less comprehensible code",
+        "It failed in environments with top-level async support, such as Jupyter",
+        "Sync support was planned to return via an unasync-style approach"
+      ],
+      "gold_evidence": [
+        "issue#572"
+      ],
+      "verification": "issue#572 body."
+    },
+    {
+      "id": "Y2",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "question": "What has the httpx maintainer said about the trade-offs of keeping the transport layer in a separate `httpcore` package rather than inside httpx?",
+      "reference_answer": "In discussion #1692 the maintainer says the strict httpx/httpcore separation has been a good thing: it helped them evolve the design and keeps a very careful separation of concerns. The downside is that having everything in one place would be more grokkable and give neater tracebacks (no httpcore -> httpx exception re-raises), so httpcore may eventually be merged into httpx, which would be an implementation detail rather than an API change.",
+      "key_facts": [
+        "The separation helped evolve the design and gives a careful separation of concerns",
+        "Keeping everything in one place would be easier to understand and give neater tracebacks (no httpcore -> httpx re-raises)",
+        "httpcore might eventually be folded into httpx without affecting the httpx API"
+      ],
+      "gold_evidence": [
+        "discussion#1692"
+      ],
+      "verification": "discussion#1692. REWORDED: the original asked why httpcore was split out and cited reasons not found in the docs or history."
+    },
+    {
+      "id": "Y3",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "question": "Why was `httpx.HTTPTransport` introduced instead of requiring users to instantiate `httpcore` connection pools directly for custom transport configuration?",
+      "reference_answer": "Issue #1173 explains that configuring a custom httpcore pool required users to specify many parameters whose defaults httpx normally sets, which was complicated, fragile and liable to drift as defaults changed. Issue #1274 (finalising the Transport API for 1.0) proposed exposing something like httpx.HTTPTransport(...) so users can override only the setting they need, e.g. local_address or retries, without dropping into httpcore.",
+      "key_facts": [
+        "Using httpcore pools directly forced users to re-specify defaults that httpx normally sets",
+        "That was fragile because those defaults can change over time",
+        "HTTPTransport lets users override just the options they need while keeping httpx defaults"
+      ],
+      "gold_evidence": [
+        "issue#1173",
+        "issue#1274"
+      ],
+      "verification": "issue#1173 and issue#1274 bodies."
+    },
+    {
+      "id": "Y4",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "tags": [
+        "false_premise"
+      ],
+      "question": "Why does the transport API use context managers (`with transport.handle_request(request) as response`) rather than a simpler `response = transport.handle_request(request)` + explicit `response.close()` call pattern?",
+      "reference_answer": "The premise is outdated: at this commit the transport API is not context-managed. _send_single_request calls response = transport.handle_request(request), and the CHANGELOG describes the change to this 'much simpler' interface (handle_request(request) returning a Response that is closed with response.close()). A context-managed style was proposed earlier in discussion #1530 for resource safety.",
+      "key_facts": [
+        "The current transport API is not context-managed: handle_request(request) returns a Response",
+        "The response is closed explicitly (response.close())",
+        "The CHANGELOG describes moving to the simpler response = transport.handle_request(request) interface"
+      ],
+      "gold_evidence": [
+        "httpx/_client.py:1001-1034",
+        "CHANGELOG.md:292-320"
+      ],
+      "verification": "httpx/_client.py:1014; CHANGELOG.md:292-320. CORRECTED: the original treated the context-manager premise (discussion #1530 proposal) as current."
+    },
+    {
+      "id": "Y5",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "question": "Why do httpx maintainers say a single `AsyncClient` shouldn't be shared across multiple asyncio event loops -- is it a thread-safety problem?",
+      "reference_answer": "In issue #2058 the maintainer says it is not about thread safety (locking during concurrency); a single client instance simply does not support being used across multiple different event loops. They describe it as not an expected usage, not something they'd expect to work, and not something they'd expect to support.",
+      "key_facts": [
+        "The maintainer says it is not a thread-safety (locking) issue",
+        "A single client instance does not support being used across different event loops",
+        "It is not an expected or supported usage"
+      ],
+      "gold_evidence": [
+        "issue#2058"
+      ],
+      "verification": "issue#2058, first maintainer comment. CORRECTED: the original cited discussion #1633 (which is about threads) and an event-loop-binding explanation that does not appear there."
+    },
+    {
+      "id": "Y7",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "question": "Why does httpx expose separate sync and async clients (`Client` and `AsyncClient`) rather than a single API whose methods work in both sync and async contexts?",
+      "reference_answer": "In issue #572 a single high-level API (an @awaitable decorator returning either a value or an awaitable depending on context) was proposed. Maintainers rejected it: it is problematic for mypy and other type checkers, and the implicitness was considered a no-no ('Let's not be clever'), in favour of explicit, separate sync and async APIs.",
+      "key_facts": [
+        "A single API that works in both modes (an awaitable decorator) was proposed in issue #572",
+        "It was rejected because it is a problem for mypy/type checkers",
+        "Maintainers preferred explicit separate sync and async variants over a clever implicit API"
+      ],
+      "gold_evidence": [
+        "issue#572"
+      ],
+      "verification": "issue#572 comments 10, 15 and 23. REWORDED and CORRECTED: the original cited reasons (IDE confusion, ambiguous signatures) that are not in the thread."
+    },
+    {
+      "id": "U2",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "question": "Why does httpx name its internal implementation modules with a leading underscore (e.g. `_client.py`, `_config.py`, `_models.py`) while re-exporting public classes from the top-level package?",
+      "reference_answer": "The 0.12.0 CHANGELOG says the release switched to private module names (Pull #785) to tighten API expectations and enforce better clarity around the public API: users should import from the top-level package (from httpx import Request) rather than from private modules like httpx._models.",
+      "key_facts": [
+        "httpx switched to private module names in 0.12.0 (Pull #785)",
+        "The stated reason is to enforce better clarity around the public API",
+        "Imports should come from the top-level httpx package"
+      ],
+      "gold_evidence": [
+        "CHANGELOG.md:790-806"
+      ],
+      "verification": "CHANGELOG.md:792-804. CORRECTED: originally labelled unanswerable, but the CHANGELOG states the rationale."
+    },
+    {
+      "id": "U3",
+      "repo": "httpx",
+      "category": "how",
+      "expected": "answer",
+      "tags": [
+        "false_premise"
+      ],
+      "question": "Why does httpx's URL pattern matching not automatically sort patterns by specificity (most specific first), placing that burden on the caller's insertion order instead?",
+      "reference_answer": "The premise is false: httpx does sort mounts by specificity. Client.__init__ applies dict(sorted(self._mounts.items())), and URLPattern.priority/__lt__ order patterns so more specific ones (explicit port, longer host, longer scheme) are matched first.",
+      "key_facts": [
+        "The premise is wrong: httpx does sort mount patterns",
+        "Client.__init__ sorts the mounts",
+        "URLPattern.priority makes more specific patterns match first"
+      ],
+      "gold_evidence": [
+        "httpx/_utils.py:205-223",
+        "httpx/_client.py:639-716"
+      ],
+      "verification": "httpx/_client.py:716; httpx/_utils.py:205-223. CORRECTED: originally an 'unanswerable' question whose premise contradicts the code."
+    },
+    {
+      "id": "T1",
+      "repo": "httpx",
+      "category": "topology",
+      "expected": "answer",
+      "question": "List the internal call chain from `httpx.Client.get(url)` to the point where the request is handed off to `httpcore`. Name each function and the file it lives in, in order.",
+      "reference_answer": "Client.get -> Client.request (build_request then send) -> Client.send -> Client._send_handling_auth -> Client._send_handling_redirects -> Client._send_single_request (all httpx/_client.py) -> transport.handle_request, i.e. HTTPTransport.handle_request in httpx/_transports/default.py, which converts to an httpcore.Request and calls self._pool.handle_request on the httpcore connection pool.",
+      "key_facts": [
+        "Client.get calls Client.request, which builds the request and calls Client.send",
+        "send -> _send_handling_auth -> _send_handling_redirects -> _send_single_request in httpx/_client.py",
+        "_send_single_request calls transport.handle_request (HTTPTransport.handle_request in httpx/_transports/default.py)",
+        "HTTPTransport.handle_request calls the httpcore pool's handle_request"
+      ],
+      "gold_evidence": [
+        "httpx/_client.py:1001-1034",
+        "httpx/_client.py:879-999",
+        "httpx/_transports/default.py:230-259"
+      ],
+      "verification": "httpx/_client.py:771-1063; httpx/_transports/default.py:230-250."
+    },
+    {
+      "id": "T2",
+      "repo": "httpx",
+      "category": "topology",
+      "expected": "answer",
+      "question": "Which files within the httpx source tree directly import from `httpx/_client.py`?",
+      "reference_answer": "httpx/__init__.py, httpx/_api.py and httpx/_main.py.",
+      "key_facts": [
+        "httpx/__init__.py imports from _client",
+        "httpx/_api.py imports from _client",
+        "httpx/_main.py imports from _client"
+      ],
+      "gold_evidence": [
+        "httpx/__init__.py",
+        "httpx/_api.py",
+        "httpx/_main.py"
+      ],
+      "verification": "grep of 'from ._client import' / 'from .._client import' over httpx/."
+    },
+    {
+      "id": "T3",
+      "repo": "httpx",
+      "category": "topology",
+      "expected": "answer",
+      "question": "Which httpx source files import the `Timeout` class from `httpx/_config.py`?",
+      "reference_answer": "httpx/_client.py (from ._config import ... Timeout) and httpx/_types.py (inside a TYPE_CHECKING block); httpx/__init__.py re-exports everything from _config with 'from ._config import *'. httpx/_api.py only imports DEFAULT_TIMEOUT_CONFIG and httpx/_transports/default.py does not import Timeout.",
+      "key_facts": [
+        "httpx/_client.py imports Timeout from _config",
+        "httpx/_types.py imports Timeout (for type checking)",
+        "httpx/__init__.py re-exports it via 'from ._config import *'"
+      ],
+      "gold_evidence": [
+        "httpx/_client.py:14-30",
+        "httpx/_types.py:20-30",
+        "httpx/__init__.py:1-10"
+      ],
+      "verification": "grep of '_config import' over httpx/. CORRECTED: the original listed httpx/_transports/default.py, which does not import Timeout."
+    },
+    {
+      "id": "W6",
+      "repo": "got",
+      "category": "what",
+      "expected": "answer",
+      "question": "What does `got.extend()` return, and how does it differ from calling `got(url, options)` with inline options?",
+      "reference_answer": "got.extend(...optionsOrInstances) returns a new Got instance created with create(): its default options are the parent's defaults merged with the given options (via Options.merge) and its handlers include the parent's. Those merged defaults apply to every request made with the new instance, whereas options passed inline to got(url, options) apply only to that single request.",
+      "key_facts": [
+        "extend() returns a new Got instance",
+        "The new instance's defaults are the parent defaults merged with the passed options",
+        "Inline options apply to one request; extended defaults apply to all requests made by the new instance"
+      ],
+      "gold_evidence": [
+        "source/create.ts:143-170",
+        "documentation/10-instances.md:35-60"
+      ],
+      "verification": "source/create.ts:143-170; documentation/10-instances.md."
+    },
+    {
+      "id": "W7",
+      "repo": "got",
+      "category": "what",
+      "expected": "answer",
+      "question": "What hooks does got expose, and at what stage of the request lifecycle does each one run?",
+      "reference_answer": "Seven hooks: init (with plain options right before normalization, when an Options instance is created), beforeRequest (right before the request is made), beforeRedirect (like beforeRequest, but when redirecting), beforeRetry (before a retry), beforeCache (right before a response is cached, only when caching is enabled), afterResponse (after a response is received; can retry with retryWithMergedOptions), and beforeError (with the RequestError right before it is thrown).",
+      "key_facts": [
+        "init runs on plain options before normalization",
+        "beforeRequest runs right before the request is made; beforeRedirect before following a redirect",
+        "beforeRetry runs before a retry; beforeError right before an error is thrown",
+        "afterResponse runs after a response is received",
+        "beforeCache runs right before a response is cached"
+      ],
+      "gold_evidence": [
+        "documentation/9-hooks.md:1-420"
+      ],
+      "verification": "documentation/9-hooks.md. REWORDED: the original asked for 'the six hook points', but there are seven (beforeCache)."
+    },
+    {
+      "id": "W8",
+      "repo": "got",
+      "category": "what",
+      "expected": "answer",
+      "question": "What does `got.paginate()` return vs `got.paginate.all()`, and when is each appropriate?",
+      "reference_answer": "got.paginate() (alias got.paginate.each()) returns an async iterator, which is memory efficient because items are processed as they arrive. got.paginate.all() returns a Promise for an array of all results, which significantly increases memory usage for large datasets, so it suits small result sets.",
+      "key_facts": [
+        "got.paginate() returns an async iterator",
+        "The iterator is memory efficient because items are handled as they arrive",
+        "got.paginate.all() returns a Promise for an array of all results",
+        "paginate.all() increases memory usage for large datasets"
+      ],
+      "gold_evidence": [
+        "documentation/4-pagination.md:20-60"
+      ],
+      "verification": "documentation/4-pagination.md:20-51."
+    },
+    {
+      "id": "W9",
+      "repo": "got",
+      "category": "what",
+      "expected": "answer",
+      "question": "What does the `calculateDelay` function in got's retry options receive as arguments, and what must it return?",
+      "reference_answer": "It receives a RetryObject: {attemptCount, retryOptions, error, computedValue, retryAfter?}, where computedValue is got's own computed delay. It returns (a promise for) a number of milliseconds to wait before the next attempt; returning 0 aborts the retry. The default is ({computedValue}) => computedValue.",
+      "key_facts": [
+        "It receives attemptCount, retryOptions, error, computedValue and optionally retryAfter",
+        "It returns the delay in milliseconds before the next attempt",
+        "Returning 0 aborts the retry"
+      ],
+      "gold_evidence": [
+        "documentation/7-retry.md:109-131"
+      ],
+      "verification": "documentation/7-retry.md:109-131. CORRECTED: the original listed retryCount (it is attemptCount) and omitted retryOptions/retryAfter."
+    },
+    {
+      "id": "W10",
+      "repo": "got",
+      "category": "what",
+      "expected": "answer",
+      "question": "What is the `mutableDefaults` option on a got instance, and what problem does it solve?",
+      "reference_answer": "mutableDefaults (default false) determines whether got.defaults.options can be modified after the instance is created; when false, create() freezes the instance's handlers and options. It exists so defaults can be changed over time, e.g. updating headers such as an access token when it expires (source/types.ts), or resetting hooks, retry and pagination on an extended instance (documentation/2-options.md).",
+      "key_facts": [
+        "mutableDefaults controls whether got.defaults.options can be modified",
+        "It defaults to false, in which case the defaults are frozen",
+        "It lets defaults change after creation, e.g. updating an expiring access token or resetting hooks/retry/pagination"
+      ],
+      "gold_evidence": [
+        "documentation/10-instances.md:27-35",
+        "documentation/2-options.md:85-100",
+        "source/create.ts:320-330",
+        "source/types.ts:15-37"
+      ],
+      "verification": "documentation/10-instances.md:27-33; documentation/2-options.md:90-100; source/create.ts:326-328. CORRECTED after evaluation run 1: source/types.ts documents the access-token use case, which the first reference omitted."
+    },
+    {
+      "id": "H6",
+      "repo": "got",
+      "category": "how",
+      "expected": "answer",
+      "question": "How does got determine whether and how long to wait before retrying a failed request -- specifically, what inputs does it use to compute the delay?",
+      "reference_answer": "calculateRetryDelay (source/core/calculate-retry-delay.ts) returns 0 (no retry) if attemptCount exceeds retry.limit or if the method is not in retry.methods or neither the error code is in retry.errorCodes nor the status code is in retry.statusCodes. If the response has a Retry-After value it uses that delay (or 0 if it exceeds maxRetryAfter / the request timeout); 413 responses are not retried. Otherwise it uses exponential backoff 2^(attemptCount-1)*1000 ms capped at backoffLimit plus random noise. The result is passed as computedValue to the user's calculateDelay.",
+      "key_facts": [
+        "Retries stop when attemptCount exceeds retry.limit",
+        "The method must be in retry.methods and the error code or status code in retry.errorCodes/statusCodes",
+        "A Retry-After header value is used as the delay when present",
+        "Otherwise exponential backoff 2^(attemptCount-1) * 1000 ms, capped by backoffLimit, plus noise",
+        "The computed value is passed to the user's calculateDelay"
+      ],
+      "gold_evidence": [
+        "source/core/calculate-retry-delay.ts:5-40",
+        "source/core/index.ts:468-560"
+      ],
+      "verification": "source/core/calculate-retry-delay.ts; source/core/index.ts:495-540. CORRECTED: the original order (Retry-After, then calculateDelay, then backoff) did not match the code."
+    },
+    {
+      "id": "H7",
+      "repo": "got",
+      "category": "how",
+      "expected": "answer",
+      "question": "How does got's `afterResponse` hook enable token-refresh flows -- specifically, how can a hook cause got to retry a 401 response with a new auth token?",
+      "reference_answer": "An afterResponse hook receives (response, retryWithMergedOptions). For a 401 it can call retryWithMergedOptions({headers: {authorization: newToken}}), which merges the options, removes the remaining afterResponse hooks (unless preserveHooks is set) and throws a RetryError; got then retries the request with the merged options, and beforeRetry hooks run.",
+      "key_facts": [
+        "The hook receives the response and a retryWithMergedOptions function",
+        "Calling retryWithMergedOptions with new headers (e.g. a new authorization token) retries the request with merged options",
+        "Internally it throws a RetryError that triggers the retry"
+      ],
+      "gold_evidence": [
+        "documentation/9-hooks.md:309-400",
+        "source/as-promise/index.ts:85-145"
+      ],
+      "verification": "documentation/9-hooks.md:309-400; source/as-promise/index.ts:110-139; calculate-retry-delay.ts:12-14."
+    },
+    {
+      "id": "H8",
+      "repo": "got",
+      "category": "how",
+      "expected": "answer",
+      "question": "How does got's pagination determine when to stop fetching pages -- what return value from the `paginate` function signals the end of pages?",
+      "reference_answer": "pagination.paginate receives {response, currentItems, allItems} and should return Got options pointing to the next page; returning false means there is no next page and pagination stops. (Pagination can also stop through shouldContinue, countLimit or requestLimit.)",
+      "key_facts": [
+        "The paginate function returns options for the next page",
+        "Returning false signals there is no next page",
+        "It receives response, currentItems and allItems"
+      ],
+      "gold_evidence": [
+        "documentation/4-pagination.md:116-136"
+      ],
+      "verification": "documentation/4-pagination.md:116-127."
+    },
+    {
+      "id": "H9",
+      "repo": "got",
+      "category": "how",
+      "expected": "answer",
+      "question": "How does got's hook system handle multiple hooks registered for the same lifecycle event -- are they called sequentially or in parallel?",
+      "reference_answer": "Hooks are arrays per event and are run serially (one after another, in order); hook functions may be async. When options are merged (e.g. got.extend), new hooks are appended to the existing arrays.",
+      "key_facts": [
+        "Hooks for an event are stored as arrays",
+        "They run serially (sequentially), and may be async",
+        "Merging options appends new hooks to the existing ones"
+      ],
+      "gold_evidence": [
+        "source/core/options.ts:2196-2245"
+      ],
+      "verification": "source/core/options.ts:2200-2245 ('Hook functions may be async and are run serially')."
+    },
+    {
+      "id": "WH6",
+      "repo": "got",
+      "category": "where",
+      "expected": "answer",
+      "question": "Where in got's source is the decision made to use the `Retry-After` response header to override the computed retry delay?",
+      "reference_answer": "Request._beforeError in source/core/index.ts parses the retry-after header (seconds or an HTTP date) into retryAfter, and calculateRetryDelay in source/core/calculate-retry-delay.ts uses it: if retryAfter is set it returns retryAfter, or 0 when it exceeds computedValue (maxRetryAfter or the request timeout).",
+      "key_facts": [
+        "source/core/index.ts (Request._beforeError) parses the Retry-After header",
+        "source/core/calculate-retry-delay.ts uses retryAfter as the delay",
+        "It returns 0 (no retry) when Retry-After exceeds maxRetryAfter / the request timeout"
+      ],
+      "gold_evidence": [
+        "source/core/calculate-retry-delay.ts:5-40",
+        "source/core/index.ts:500-520"
+      ],
+      "verification": "source/core/index.ts:503-515; calculate-retry-delay.ts:26-31."
+    },
+    {
+      "id": "WH7",
+      "repo": "got",
+      "category": "where",
+      "expected": "answer",
+      "question": "Where does got merge options when `got.extend()` is called with new defaults -- specifically, how are array-type options like `hooks` merged (replaced vs concatenated)?",
+      "reference_answer": "got.extend (source/create.ts) creates new Options from the parent defaults and calls options.merge() for each argument. Options.merge (source/core/options.ts) sets an internal merging flag, and the hooks setter then appends (push) the new hooks to the existing arrays, so hooks are concatenated rather than replaced; outside a merge, assigning hooks replaces them.",
+      "key_facts": [
+        "got.extend in source/create.ts calls Options.merge",
+        "Options.merge in source/core/options.ts sets a merging flag",
+        "While merging, hooks are appended (concatenated), not replaced"
+      ],
+      "gold_evidence": [
+        "source/core/options.ts:1501-1554",
+        "source/core/options.ts:2208-2245",
+        "source/create.ts:143-170"
+      ],
+      "verification": "source/create.ts:143-170; source/core/options.ts:1501-1554 and :2230-2243."
+    },
+    {
+      "id": "WH8",
+      "repo": "got",
+      "category": "where",
+      "expected": "answer",
+      "question": "Where does got's code path diverge between returning a Promise (Promise API) and returning a stream (Stream API)?",
+      "reference_answer": "In makeRequest in source/create.ts. Both got() and got.stream() create a Request (a duplex stream from source/core/index.ts); got.stream passes isStream=true. The final handler returns the Request itself when the stream API was requested, otherwise it wraps it with asPromise(request) from source/as-promise/index.ts.",
+      "key_facts": [
+        "The split happens in makeRequest in source/create.ts",
+        "got.stream sets isStream to true",
+        "Streams return the Request object itself; otherwise asPromise(request) wraps it in a promise"
+      ],
+      "gold_evidence": [
+        "source/create.ts:71-136"
+      ],
+      "verification": "source/create.ts:71-106 and :315. CORRECTED: the original cited source/as-stream/index.ts, which does not exist."
+    },
+    {
+      "id": "WH9",
+      "repo": "got",
+      "category": "where",
+      "expected": "answer",
+      "question": "Where is got's ESM-only constraint enforced -- is it a runtime check, a package.json field, or something else?",
+      "reference_answer": "In package.json: \"type\": \"module\" with an \"exports\" map pointing only to the ESM build (./dist/source/index.js). There is no runtime check; Node's module system enforces it.",
+      "key_facts": [
+        "package.json sets \"type\": \"module\"",
+        "The exports field only points to the ESM build",
+        "There is no runtime check in the source"
+      ],
+      "gold_evidence": [
+        "package.json:1-30"
+      ],
+      "verification": "package.json:8-12."
+    },
+    {
+      "id": "T4",
+      "repo": "got",
+      "category": "topology",
+      "expected": "answer",
+      "question": "Which internal got source files directly import from `source/core/errors.ts` (where `RequestError` and the other error classes are defined)?",
+      "reference_answer": "source/core/index.ts, source/core/options.ts, source/core/response.ts, source/core/diagnostics-channel.ts and source/as-promise/index.ts import from it, and source/index.ts re-exports it (export * from './core/errors.js').",
+      "key_facts": [
+        "source/core/index.ts imports from errors.ts",
+        "source/core/options.ts and source/core/response.ts import from errors.ts",
+        "source/core/diagnostics-channel.ts imports from errors.ts",
+        "source/as-promise/index.ts imports from errors.ts",
+        "source/index.ts re-exports errors.ts"
+      ],
+      "gold_evidence": [
+        "source/core/index.ts:1-40",
+        "source/as-promise/index.ts:1-20",
+        "source/index.ts:1-25"
+      ],
+      "verification": "grep of \"from './errors.js'\" / \"from '../core/errors.js'\" over source/."
+    },
+    {
+      "id": "T5",
+      "repo": "got",
+      "category": "topology",
+      "expected": "answer",
+      "question": "Trace the call chain from `got(url)` at the top-level entry point down to where Node's `http.request`/`https.request` is invoked. Name each function and its file.",
+      "reference_answer": "got() (source/create.ts) -> makeRequest (source/create.ts), which creates a Request (source/core/index.ts) and runs the handlers -> the last handler calls request.flush() -> Request._makeRequest() (source/core/index.ts) -> options.getRequestFunction() (source/core/options.ts), which returns https.request or http.request based on the URL protocol (or http2-wrapper with http2) -> that function is called with the native request options. For the Promise API, asPromise(request) (source/as-promise/index.ts) wraps the Request.",
+      "key_facts": [
+        "got() in source/create.ts calls makeRequest, which creates a Request from source/core/index.ts",
+        "The handler chain ends by calling request.flush(), which calls Request._makeRequest()",
+        "_makeRequest gets the request function from Options.getRequestFunction() in source/core/options.ts",
+        "getRequestFunction falls back to https.request or http.request depending on the protocol"
+      ],
+      "gold_evidence": [
+        "source/create.ts:71-140",
+        "source/core/index.ts:425-466",
+        "source/core/index.ts:2104-2362",
+        "source/core/options.ts:3248-3363"
+      ],
+      "verification": "source/create.ts:71-139; source/core/index.ts:425-447, 2306-2339; source/core/options.ts:3248-3363."
+    },
+    {
+      "id": "T6",
+      "repo": "got",
+      "category": "topology",
+      "expected": "answer",
+      "question": "List the TypeScript source files in got that directly import from `source/core/index.ts`.",
+      "reference_answer": "source/create.ts and source/as-promise/index.ts import the Request class; source/as-promise/types.ts, source/types.ts, source/core/errors.ts and source/core/response.ts import types from it; source/index.ts re-exports it.",
+      "key_facts": [
+        "source/create.ts imports Request from core/index",
+        "source/as-promise/index.ts imports from core/index",
+        "Type-only imports exist in source/types.ts, source/as-promise/types.ts, source/core/errors.ts and source/core/response.ts",
+        "source/index.ts re-exports core/index"
+      ],
+      "gold_evidence": [
+        "source/create.ts:1-30",
+        "source/as-promise/index.ts:1-20",
+        "source/index.ts:1-25"
+      ],
+      "verification": "grep of \"core/index.js'\" and \"from './index.js'\" over source/. CORRECTED: the original listed source/as-stream/index.ts, which does not exist."
+    },
+    {
+      "id": "Y9",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "question": "Why did got rewrite its retry functionality in v9, and what was the limitation of the previous approach?",
+      "reference_answer": "The v9.0.0 release notes say retry functionality was rewritten to improve its reliability and to support retrying on HTTP status codes; previously it only retried on some network failures. The option was renamed from retries to retry and gained an object form (retries, status codes, methods).",
+      "key_facts": [
+        "The rewrite improved reliability",
+        "It added retrying on HTTP status codes",
+        "Previously got only retried on some network failures"
+      ],
+      "gold_evidence": [
+        "release:v9.0.0"
+      ],
+      "verification": "release:v9.0.0 notes."
+    },
+    {
+      "id": "Y10",
+      "repo": "got",
+      "category": "why",
+      "expected": "abstain",
+      "tags": [
+        "false_premise"
+      ],
+      "question": "Why was the retry option renamed from `{ retries: function }` to `{ calculateDelay: function }` in v10?",
+      "reference_answer": "The v10.0.0 release notes document the change, but as a split rather than a rename: retry.retries was split into retry.limit (a number) and retry.calculateDelay (a function), with migration diffs. Unlike neighbouring entries, this item has no 'Why:' line, so no rationale is documented.",
+      "key_facts": [
+        "The system says no rationale is documented for this change",
+        "Ideally it notes the change was a split into retry.limit and retry.calculateDelay"
+      ],
+      "gold_evidence": [
+        "release:v10.0.0"
+      ],
+      "verification": "release:v10.0.0 notes. CORRECTED: the original claimed a stated reason; the notes give none."
+    },
+    {
+      "id": "Y13",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "question": "Why does got default `pagination.stackAllItems` to `false` (keeping `allItems` as an empty array in the paginate callback) rather than accumulating all items automatically?",
+      "reference_answer": "documentation/4-pagination.md says that by default allItems is always an empty array and that setting stackAllItems to true 'will significantly increase memory usage when working with a large dataset', so accumulation is opt-in to avoid that memory cost.",
+      "key_facts": [
+        "Setting stackAllItems to true significantly increases memory usage on large datasets",
+        "So by default allItems stays empty and accumulation is opt-in"
+      ],
+      "gold_evidence": [
+        "documentation/4-pagination.md:180-188"
+      ],
+      "verification": "documentation/4-pagination.md:180-187."
+    },
+    {
+      "id": "Y14",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "question": "Why did got v10 change the `json` option so that it only sets the request body, requiring `.json()` or `responseType` to parse the response?",
+      "reference_answer": "The v10.0.0 release notes say many people were confused by how {json: true} worked and complained that they could not set the request and response types individually; now json only sets the JSON request body and the response is parsed via .json() or the responseType option.",
+      "key_facts": [
+        "Users were confused by how {json: true} worked",
+        "Users could not set the request and response types individually",
+        "Now json sets the request body, and .json()/responseType parse the response"
+      ],
+      "gold_evidence": [
+        "release:v10.0.0"
+      ],
+      "verification": "release:v10.0.0 notes ('Why: Many people were confused...'). REWORDED: the original asked why .json() is chained on the promise and cited reasons not found in any source."
+    },
+    {
+      "id": "Y11",
+      "repo": "got",
+      "category": "unanswerable",
+      "expected": "abstain",
+      "question": "Why did got switch to ESM-only from v12 onwards, dropping CommonJS support?",
+      "reference_answer": "The indexed evidence does not state the reasons. The v12.0.0 release notes and issue #1789 announce that the package is pure ESM and link to an external gist ('Please read this') for the explanation, but the rationale itself is not in the repository, its issues or its release notes.",
+      "key_facts": [
+        "The system says the rationale is not documented in the available evidence",
+        "Ideally it notes the release notes/issue #1789 only point to an external explanation"
+      ],
+      "gold_evidence": [
+        "release:v12.0.0",
+        "issue#1789"
+      ],
+      "verification": "release:v12.0.0; issue#1789. Rationale only in an external gist. CORRECTED: the original asserted reasons from outside knowledge."
+    },
+    {
+      "id": "Y12",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "question": "Why does got use `got.extend()` for customization rather than class-based inheritance or a constructor with options?",
+      "reference_answer": "got's documentation (documentation/examples/advanced-creation.js) says composing instances is very powerful and 'like plugins without any of the plugin mess': you create instances and compose them with instanceA.extend(instanceB, instanceC, ...). PR #707 simplified instance creation so extend() replaced got.mergeInstances(). The sources do not explicitly compare this with class-based inheritance.",
+      "key_facts": [
+        "Composing instances with extend() is presented as 'like plugins without any of the plugin mess'",
+        "Instances (and options) are composed with instanceA.extend(instanceB, ...)",
+        "extend() replaced got.mergeInstances() (PR #707)"
+      ],
+      "gold_evidence": [
+        "documentation/examples/advanced-creation.js:1-20",
+        "PR#707"
+      ],
+      "verification": "documentation/examples/advanced-creation.js:6-16; PR#707. CORRECTED after evaluation run 1: originally labelled unanswerable; curation had only searched Markdown docs and missed the rationale in the documentation examples."
+    },
+    {
+      "id": "Y6",
+      "repo": "httpx",
+      "category": "unanswerable",
+      "expected": "abstain",
+      "question": "Why does httpx enforce timeouts by default when the `requests` library has no timeout by default?",
+      "reference_answer": "The docs state the behaviour (httpx enforces timeouts everywhere by default, 5 seconds of inactivity; requests has none, see docs/compatibility.md) and PR #2433 added that comparison, but no source states the reason for the design choice.",
+      "key_facts": [
+        "The system says the docs describe the default but give no rationale for it"
+      ],
+      "gold_evidence": [
+        "docs/compatibility.md:148-156",
+        "docs/advanced/timeouts.md:1-6"
+      ],
+      "verification": "docs/compatibility.md:148-156; docs/advanced/timeouts.md:1-6; PR#2433; history search. CORRECTED: the original claimed a documented 'design philosophy' rationale."
+    },
+    {
+      "id": "Y8",
+      "repo": "httpx",
+      "category": "unanswerable",
+      "expected": "abstain",
+      "question": "Why does httpx not implement HTTP response caching (RFC 7234) in the core library?",
+      "reference_answer": "No rationale is documented. The docs and maintainer replies (e.g. discussion #1693) only point users to third-party packages such as httpx-caching and Hishel.",
+      "key_facts": [
+        "The system says no documented rationale was found",
+        "Ideally it mentions that caching is delegated to third-party packages such as Hishel"
+      ],
+      "gold_evidence": [],
+      "verification": "docs/compatibility.md:206-208; discussion#1693; history search. CORRECTED: the original asserted an FAQ rationale that does not exist."
+    },
+    {
+      "id": "U1",
+      "repo": "httpx",
+      "category": "unanswerable",
+      "expected": "abstain",
+      "question": "Why did the httpx authors choose 5 seconds specifically as the default timeout value for connect and read operations?",
+      "reference_answer": "No PR, issue, commit or documentation explains why 5 seconds specifically was chosen. The docs only state that httpx enforces timeouts everywhere by default with a 5 second default.",
+      "key_facts": [
+        "The system says no documented rationale for the specific 5 second value was found"
+      ],
+      "gold_evidence": [],
+      "verification": "History search (issue#435, PR#492, PR#593, PR#1085) and docs: the 5s default is stated, never justified."
+    },
+    {
+      "id": "U4",
+      "repo": "httpx",
+      "category": "unanswerable",
+      "expected": "abstain",
+      "question": "Why did the httpx project choose the name \"httpx\" rather than alternatives like `http2`, `requests2`, or `async-requests`?",
+      "reference_answer": "No documented naming rationale exists in the repository, docs or project history.",
+      "key_facts": [
+        "The system says no documented naming rationale was found"
+      ],
+      "gold_evidence": [],
+      "verification": "History search: commit 2d09d5b36c / PR#129 rename from http3 to httpx without a stated reason."
+    },
+    {
+      "id": "U5",
+      "repo": "got",
+      "category": "unanswerable",
+      "expected": "abstain",
+      "question": "Why does got use 2 as its default retry limit rather than 1 or 3?",
+      "reference_answer": "No documented rationale exists for the specific default of 2; documentation/7-retry.md states the default without explanation.",
+      "key_facts": [
+        "The system says no documented rationale for the value 2 was found"
+      ],
+      "gold_evidence": [],
+      "verification": "History search (issue#417, PR#508, issue#1599, discussion#2065) and documentation/7-retry.md: the default is stated, never justified."
+    },
+    {
+      "id": "U6",
+      "repo": "got",
+      "category": "unanswerable",
+      "expected": "abstain",
+      "question": "Why does got's `beforeError` hook receive a `RequestError` object rather than the raw Node.js error that caused the failure?",
+      "reference_answer": "No documented rationale for this wrapping decision was found in the docs, issues, PRs or release notes.",
+      "key_facts": [
+        "The system says no documented rationale was found"
+      ],
+      "gold_evidence": [],
+      "verification": "History search (PR#696 introducing beforeError, issue#1712, issue#1353) and documentation/9-hooks.md: no stated reason for passing RequestError."
+    },
+    {
+      "id": "U7",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "question": "Why does got's default `retry.statusCodes` contain exactly 408, 413, 429, 500, 502, 503, 504, 521, 522 and 524 -- what was the reasoning behind this specific set?",
+      "reference_answer": "In issue #417 the maintainer proposed retrying by default on methods GET, PUT, HEAD, DELETE, OPTIONS, TRACE and status codes 408, 413, 429, 500, 502, 503, 504, 'sourced from experience and other request clients', and said the Retry-After header must be respected (implemented in PR #508, where 413 is only retried with a valid Retry-After). PR #991 later added Cloudflare's 521, 522 and 524 because those Cloudflare errors seemed appropriate for retry, omitting the SSL-related codes (unlikely to be intermittent) and 530 (it can mean many errors, such as rate limits).",
+      "key_facts": [
+        "The original set (408, 413, 429, 500, 502, 503, 504) was proposed in issue #417, sourced from experience and other HTTP clients",
+        "521, 522 and 524 were added in PR #991 as Cloudflare errors appropriate for retry",
+        "Cloudflare's SSL errors and 530 were deliberately left out"
+      ],
+      "gold_evidence": [
+        "issue#417",
+        "PR#991"
+      ],
+      "verification": "issue#417 (maintainer comment), PR#508, PR#991. CORRECTED: originally labelled unanswerable and listed only 7 of the 10 codes; the history documents the reasoning."
+    },
+    {
+      "id": "U8",
+      "repo": "got",
+      "category": "unanswerable",
+      "expected": "abstain",
+      "question": "Why is the library named \"got\" -- is the name documented as a reference to HTTP GET, to the past tense of \"get\", or something else?",
+      "reference_answer": "No authoritative naming rationale is documented. In issue #2115 a maintainer says he did not choose the name and only guesses it came from 'GET request -> got'.",
+      "key_facts": [
+        "The system says there is no documented/authoritative rationale for the name",
+        "Ideally it mentions a maintainer's guess (GET request -> got) in issue #2115 without presenting it as the reason"
+      ],
+      "gold_evidence": [
+        "issue#2115"
+      ],
+      "verification": "issue#2115, issue#972, discussion#2290: users ask, a maintainer guesses; no authoritative answer."
+    }
+  ]
+}

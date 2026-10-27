@@ -1,0 +1,318 @@
+{
+  "summary": {
+    "all": {
+      "bm25": {
+        "questions": 27,
+        "recall@1": 0.3333333333333333,
+        "recall@5": 0.6296296296296297,
+        "recall@10": 0.8148148148148148,
+        "mrr@10": 0.47724867724867726
+      },
+      "dense": {
+        "questions": 27,
+        "recall@1": 0.48148148148148145,
+        "recall@5": 0.7037037037037037,
+        "recall@10": 0.7777777777777778,
+        "mrr@10": 0.5747942386831275
+      },
+      "hybrid": {
+        "questions": 27,
+        "recall@1": 0.4444444444444444,
+        "recall@5": 0.8518518518518519,
+        "recall@10": 0.9259259259259259,
+        "mrr@10": 0.6065255731922399
+      }
+    },
+    "code_and_docs": {
+      "bm25": {
+        "questions": 21,
+        "recall@1": 0.3333333333333333,
+        "recall@5": 0.7142857142857143,
+        "recall@10": 0.8571428571428571,
+        "mrr@10": 0.5056122448979592
+      },
+      "dense": {
+        "questions": 21,
+        "recall@1": 0.47619047619047616,
+        "recall@5": 0.7142857142857143,
+        "recall@10": 0.7142857142857143,
+        "mrr@10": 0.573015873015873
+      },
+      "hybrid": {
+        "questions": 21,
+        "recall@1": 0.42857142857142855,
+        "recall@5": 0.8571428571428571,
+        "recall@10": 0.9047619047619048,
+        "mrr@10": 0.5984126984126984
+      }
+    },
+    "history": {
+      "bm25": {
+        "questions": 6,
+        "recall@1": 0.3333333333333333,
+        "recall@5": 0.3333333333333333,
+        "recall@10": 0.6666666666666666,
+        "mrr@10": 0.37797619047619047
+      },
+      "dense": {
+        "questions": 6,
+        "recall@1": 0.5,
+        "recall@5": 0.6666666666666666,
+        "recall@10": 1.0,
+        "mrr@10": 0.5810185185185185
+      },
+      "hybrid": {
+        "questions": 6,
+        "recall@1": 0.5,
+        "recall@5": 0.8333333333333334,
+        "recall@10": 1.0,
+        "mrr@10": 0.6349206349206349
+      }
+    }
+  },
+  "questions": [
+    {
+      "id": "W1",
+      "repo": "httpx",
+      "category": "what",
+      "history": false,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "W2",
+      "repo": "httpx",
+      "category": "what",
+      "history": false,
+      "bm25": 4,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "W3",
+      "repo": "httpx",
+      "category": "what",
+      "history": false,
+      "bm25": 1,
+      "dense": 16,
+      "hybrid": 3
+    },
+    {
+      "id": "W4",
+      "repo": "httpx",
+      "category": "what",
+      "history": false,
+      "bm25": 7,
+      "dense": 1,
+      "hybrid": 2
+    },
+    {
+      "id": "W5",
+      "repo": "httpx",
+      "category": "what",
+      "history": false,
+      "bm25": 2,
+      "dense": 5,
+      "hybrid": 2
+    },
+    {
+      "id": "H1",
+      "repo": "httpx",
+      "category": "how",
+      "history": false,
+      "bm25": 3,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "H2",
+      "repo": "httpx",
+      "category": "how",
+      "history": false,
+      "bm25": 3,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "H3",
+      "repo": "httpx",
+      "category": "how",
+      "history": false,
+      "bm25": 1,
+      "dense": 2,
+      "hybrid": 1
+    },
+    {
+      "id": "H4",
+      "repo": "httpx",
+      "category": "how",
+      "history": false,
+      "bm25": 2,
+      "dense": 3,
+      "hybrid": 2
+    },
+    {
+      "id": "H5",
+      "repo": "httpx",
+      "category": "how",
+      "history": true,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "WH1",
+      "repo": "httpx",
+      "category": "where",
+      "history": false,
+      "bm25": 10,
+      "dense": 2,
+      "hybrid": 3
+    },
+    {
+      "id": "WH2",
+      "repo": "httpx",
+      "category": "where",
+      "history": false,
+      "bm25": 2,
+      "dense": 2,
+      "hybrid": 2
+    },
+    {
+      "id": "WH3",
+      "repo": "httpx",
+      "category": "where",
+      "history": false,
+      "bm25": 8,
+      "dense": null,
+      "hybrid": 12
+    },
+    {
+      "id": "WH4",
+      "repo": "httpx",
+      "category": "where",
+      "history": false,
+      "bm25": 2,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "WH5",
+      "repo": "httpx",
+      "category": "where",
+      "history": false,
+      "bm25": null,
+      "dense": null,
+      "hybrid": null
+    },
+    {
+      "id": "Y1",
+      "repo": "httpx",
+      "category": "why",
+      "history": true,
+      "bm25": 8,
+      "dense": 4,
+      "hybrid": 3
+    },
+    {
+      "id": "Y2",
+      "repo": "httpx",
+      "category": "why",
+      "history": true,
+      "bm25": null,
+      "dense": 8,
+      "hybrid": 7
+    },
+    {
+      "id": "Y3",
+      "repo": "httpx",
+      "category": "why",
+      "history": true,
+      "bm25": 7,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "Y4",
+      "repo": "httpx",
+      "category": "why",
+      "history": false,
+      "bm25": 1,
+      "dense": 12,
+      "hybrid": 5
+    },
+    {
+      "id": "Y5",
+      "repo": "httpx",
+      "category": "why",
+      "history": true,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "Y7",
+      "repo": "httpx",
+      "category": "why",
+      "history": true,
+      "bm25": 19,
+      "dense": 9,
+      "hybrid": 3
+    },
+    {
+      "id": "U2",
+      "repo": "httpx",
+      "category": "why",
+      "history": false,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "U3",
+      "repo": "httpx",
+      "category": "how",
+      "history": false,
+      "bm25": 3,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "T1",
+      "repo": "httpx",
+      "category": "topology",
+      "history": false,
+      "bm25": null,
+      "dense": 12,
+      "hybrid": 6
+    },
+    {
+      "id": "T2",
+      "repo": "httpx",
+      "category": "topology",
+      "history": false,
+      "bm25": 20,
+      "dense": 1,
+      "hybrid": 3
+    },
+    {
+      "id": "T3",
+      "repo": "httpx",
+      "category": "topology",
+      "history": false,
+      "bm25": 1,
+      "dense": 14,
+      "hybrid": 5
+    },
+    {
+      "id": "Y6",
+      "repo": "httpx",
+      "category": "unanswerable",
+      "history": false,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    }
+  ]
+}

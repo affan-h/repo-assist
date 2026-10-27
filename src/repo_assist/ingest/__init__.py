@@ -10,6 +10,8 @@ from collections import Counter
 from collections.abc import Callable
 from datetime import datetime, timezone
 
+import httpx
+
 from repo_assist import store
 from repo_assist.config import get_settings
 from repo_assist.embeddings import Embedder, embed_with_cache, get_embedder
@@ -75,16 +77,22 @@ def ingest(repo_id: str, ref: str | None = None, *, include_history: bool = True
             elif docs.is_indexable_doc(path):
                 chunks += docs.chunk_document(path, file_path.read_text(encoding="utf-8", errors="replace"))
 
+        warnings: list[str] = []
         if include_history:
             stage("Reading commit history")
             chunks += git.commit_chunks(checkout.path, settings.max_commits)
             if settings.github_token:
-                stage("Fetching issues, pull requests and discussions")
+                stage("Fetching releases, issues, pull requests and discussions")
                 cutoff = datetime.fromisoformat(checkout.date).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                chunks += github.fetch_thread_chunks(owner, name, settings.github_token, cutoff,
-                                                     settings.max_threads, progress=stage)
+                try:
+                    chunks += github.fetch_thread_chunks(owner, name, settings.github_token, cutoff,
+                                                         settings.max_threads, progress=stage)
+                except (httpx.HTTPError, RuntimeError) as exc:  # history is optional; keep code+docs+commits
+                    warnings.append(f"GitHub history skipped: {exc}")
+                    log.warning("[%s] %s", repo_id, warnings[-1])
             else:
-                log.warning("GITHUB_TOKEN not set: skipping issues/PRs/discussions")
+                warnings.append("GITHUB_TOKEN not set: issues, PRs, discussions and releases not indexed")
+                log.warning("[%s] %s", repo_id, warnings[-1])
 
         # Duplicate refs can occur (e.g. a one-line class header and method); keep the first.
         unique: dict[str, store.Chunk] = {}
@@ -103,6 +111,8 @@ def ingest(repo_id: str, ref: str | None = None, *, include_history: bool = True
         stats = dict(Counter(c.kind for c in chunks))
         stats["symbols"] = len(symbols)
         stats["ingest_seconds"] = round(time.monotonic() - started)
+        if warnings:
+            stats["warnings"] = warnings
         with conn:  # single transaction: swap old index for new
             store.clear_repo_index(conn, repo_id)
             store.insert_chunks(conn, repo_id, chunks, vectors)

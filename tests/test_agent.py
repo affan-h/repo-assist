@@ -156,3 +156,55 @@ def test_read_thread_replaces_search_preview(ingested_repo, monkeypatch):
     result = asyncio.run(agent.answer(ingested_repo, "why 5s?", model=FunctionModel(respond)))
     text = result.evidence[result.citations[0].ref].text
     assert text.count("Add client with default timeout") == 1
+
+
+def test_identical_repeat_calls_are_short_circuited(ingested_repo, monkeypatch):
+    monkeypatch.setattr(embeddings, "_embedder", HashEmbedder())
+    calls = iter([ToolCallPart("search_code", {"query": "timeout"}), ToolCallPart("search_code", {"query": "timeout"})])
+    returns = []
+
+    def respond(messages, info):
+        returns.extend(p.content for p in messages[-1].parts if isinstance(p, ToolReturnPart))
+        nxt = next(calls, None)
+        if nxt is not None:
+            return ModelResponse(parts=[nxt])
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {
+            "answer": "Unknown.", "citations": [], "abstained": True})])
+
+    result = asyncio.run(agent.answer(ingested_repo, "timeouts?", model=FunctionModel(respond)))
+    assert returns[-1] == agent.REPEAT_MESSAGE
+    assert [c.summary for c in result.trace][-1] == "repeated call skipped"
+
+
+def test_budget_exhaustion_falls_back_to_gathered_evidence(ingested_repo, monkeypatch):
+    monkeypatch.setattr(embeddings, "_embedder", HashEmbedder())
+    counter = iter(range(1000))
+
+    def respond(messages, info):
+        if info.function_tools:  # the investigating agent never stops searching
+            return ModelResponse(parts=[ToolCallPart("search_code", {"query": f"timeout {next(counter)}"})])
+        prompt = messages[0].parts[-1].content  # fallback: tool-less answer over gathered evidence
+        assert "ran out of steps" in prompt
+        ref = next(line[1:].split("]")[0] for line in prompt.splitlines() if line.startswith("[pkg/client.py"))
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {
+            "answer": "It uses DEFAULT_TIMEOUT [1].", "citations": [ref], "abstained": False})])
+
+    result = asyncio.run(agent.answer(ingested_repo, "What is the default timeout?", model=FunctionModel(respond)))
+    assert "Step budget reached" in result.error
+    assert not result.abstained and result.citations
+    assert agent.AGENT_LIMITS.request_limit - 2 <= len(result.trace) <= agent.AGENT_LIMITS.tool_calls_limit
+    assert result.usage["requests"] > agent.AGENT_LIMITS.request_limit - 1  # includes the fallback call
+
+
+@pytest.mark.parametrize("ref, expected", [
+    ("v9.0.0", "release:v9.0.0"),
+    ("9.0.0", "release:v9.0.0"),
+    ("release:9.0.0", "release:v9.0.0"),
+    ("release:v9.0.0", "release:v9.0.0"),
+])
+def test_release_ref_candidates(ref, expected):
+    assert expected in agent._ref_candidates(ref)
+
+
+def test_non_release_refs_are_unchanged():
+    assert agent._ref_candidates("PR#12") == ["PR#12"]
