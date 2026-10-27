@@ -130,8 +130,8 @@ python evals/run_eval.py --split test     # agent + baseline on every question; 
 
 Everything that can be checked mechanically is. The LLM judge (`evals/judge.py`) only decides which key facts an
 answer states and whether its claims are supported, and it never sees answers that declined. Its reliability is
-measured, not assumed: `evals/judge_audit.py` compares its key-fact decisions with an independent reviewer
-(agreement and Cohen's kappa). Correctness carries a 95% bootstrap interval, and the agent is compared with the
+measured, not assumed: `evals/judge_audit.py` has a second, independently trained free model (Gemma 4, on the same
+free API key) re-make every key-fact decision, and reports agreement, Cohen's kappa and every disagreement. Correctness carries a 95% bootstrap interval, and the agent is compared with the
 baseline on the same questions (paired bootstrap difference, exact McNemar test). Every LLM call goes through a
 record/replay cache (`evals/llm_cache.py`), so a run stopped by the free tier's daily quota resumes the next day
 without repeating work.
@@ -207,7 +207,7 @@ repo-assist ingest sindresorhus/got  --ref 66ca4e025622e1dd71f4e4f13aa6e1b79d61b
 repo-assist ingest go-chi/chi        --ref v5.5.0
 python evals/retrieval_eval.py --split test      # retrieval ablation, no LLM
 python evals/run_eval.py --split test             # agent vs baseline; resumable, cached
-python evals/judge_audit.py sample --split test   # then fill in `review` and run `score`
+python evals/judge_audit.py --split test          # second-judge agreement check
 pytest                                            # offline unit/integration tests
 ```
 

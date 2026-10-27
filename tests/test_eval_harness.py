@@ -98,3 +98,31 @@ def test_score_unanswerable_uses_the_flag():
                 "citations": [], "quotes": []}
     assert report.score(UNANSWERABLE, answered)["correct"] == 0.0
     assert report.score(UNANSWERABLE, {**answered, "abstained": True, "judgement": None})["correct"] == 1.0
+
+
+@pytest.mark.parametrize("text, n, expected", [
+    ("YES\nNO", 2, [True, False]),
+    ("1. Yes\n2. no", 2, [True, False]),
+    ("YES", 2, None),                      # wrong count -> unparseable, skipped
+])
+def test_parse_second_judge(text, n, expected):
+    from evals.judge_audit import parse_verdicts
+    assert parse_verdicts(text, n) == expected
+
+
+def test_judge_audit_counts_agreement(eval_dirs):
+    from pydantic_ai.messages import TextPart
+
+    from evals import judge_audit
+    record = {"id": "Q1", "system": "agent", "answer": "It's in pkg/client.py.", "abstained": False,
+              "judgement": {"key_facts": [{"fact": ANSWERABLE["key_facts"][0], "covered": True},
+                                          {"fact": ANSWERABLE["key_facts"][1], "covered": True}],
+                            "claims": [], "contradicts_reference": False, "notes": ""}}
+    out = common.results_dir("test") / "answers.jsonl"
+    out.parent.mkdir(parents=True)
+    out.write_text(json.dumps(record) + "\n")
+    second = FunctionModel(lambda messages, info: ModelResponse(parts=[TextPart("NO\nYES")]))
+    result = asyncio.run(judge_audit.audit("test", model=second))
+    assert result["decisions"] == 2 and result["agreement"] == 0.5
+    assert [d["fact"] for d in result["disagreements"]] == [ANSWERABLE["key_facts"][0]]
+    assert "| Q1 | agent |" in judge_audit.render(result)
