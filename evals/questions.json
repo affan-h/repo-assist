@@ -1,8 +1,9 @@
 {
-  "description": "Evaluation questions for repo-assist. `split`: `dev` questions were used while building the system (all 56 original questions, re-verified); `test` questions were written before the final system ran on them. Repos are pinned: encode/httpx@b5addb64f0161ff6bfe94c124ef76f6a1fba5254 and sindresorhus/got@66ca4e025622e1dd71f4e4f13aa6e1b79d61b069. Derived from the project's original 56-question set; every reference answer was re-verified against the pinned source, docs and GitHub history (see `verification`). gold_evidence uses file line ranges or history refs; a retrieved chunk counts if it overlaps.",
+  "description": "Evaluation questions for repo-assist. `split`: `dev` questions were used while building the system (all 56 original questions, re-verified); `test` questions were written before the final system ran on them. Repos are pinned: encode/httpx@b5addb64f0161ff6bfe94c124ef76f6a1fba5254 sindresorhus/got@66ca4e025622e1dd71f4e4f13aa6e1b79d61b069 and go-chi/chi@v5.5.0 (3a33ba578e0dd93444e0ff386cc26e665d92e31e). Derived from the project's original 56-question set; every reference answer was re-verified against the pinned source, docs and GitHub history (see `verification`). gold_evidence uses file line ranges or history refs; a retrieved chunk counts if it overlaps.",
   "pins": {
     "httpx": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254",
-    "got": "66ca4e025622e1dd71f4e4f13aa6e1b79d61b069"
+    "got": "66ca4e025622e1dd71f4e4f13aa6e1b79d61b069",
+    "chi": "3a33ba578e0dd93444e0ff386cc26e665d92e31e"
   },
   "questions": [
     {
@@ -1082,6 +1083,662 @@
       ],
       "verification": "issue#2115, issue#972, discussion#2290: users ask, a maintainer guesses; no authoritative answer.",
       "split": "dev"
+    },
+    {
+      "id": "gY1",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why does got v14 require Node.js 20 instead of targeting the oldest active Node.js LTS (Node.js 18)?",
+      "reference_answer": "The v14.0.0 release notes say the maintainer normally targets the oldest active LTS, but got is the exception because the HTTP part of Node.js is consistently buggy and there is no time to work around issues in older Node.js releases; users needing Node.js 18 should stay on Got v13.",
+      "key_facts": [
+        "Node.js's HTTP implementation is consistently buggy",
+        "The maintainer doesn't have time to work around issues in older Node.js releases",
+        "Users who need Node.js 18 should stay on Got v13"
+      ],
+      "gold_evidence": [
+        "release:v14.0.0"
+      ],
+      "verification": "release:v14.0.0 'Why not target the oldest active Node.js LTS...' (mined: release_why)."
+    },
+    {
+      "id": "gY2",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why did got v10 replace the `baseUrl` option with `prefixUrl`?",
+      "reference_answer": "The v10.0.0 release notes say it was renamed to make it clear that it doesn't do any URL resolution; it was also made stricter to reduce ambiguity (the url argument cannot start with a slash when prefixUrl is used).",
+      "key_facts": [
+        "The rename makes clear the option does not do any URL resolution",
+        "It was made stricter to reduce ambiguity (no leading slash in the url when prefixUrl is set)"
+      ],
+      "gold_evidence": [
+        "release:v10.0.0"
+      ],
+      "verification": "release:v10.0.0 'Replace the baseUrl option with prefixUrl (#829)' Why line."
+    },
+    {
+      "id": "gY3",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why did got v10 stop automatically using the POST method when a `body` is specified?",
+      "reference_answer": "The v10.0.0 release notes: 'We're trying to reduce the amount of magic behavior.' Users now call got.post(...) explicitly.",
+      "key_facts": [
+        "To reduce the amount of magic (implicit) behavior",
+        "Users must now use got.post (or set the method) explicitly"
+      ],
+      "gold_evidence": [
+        "release:v10.0.0"
+      ],
+      "verification": "release:v10.0.0 'Don't infer POST automatically when specifying body (#756)' Why line."
+    },
+    {
+      "id": "gY4",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why was got's `stream` option renamed to `isStream` in v10?",
+      "reference_answer": "Per the v10.0.0 release notes, to make it clearer that it's a boolean and that it doesn't expect a stream to be passed in.",
+      "key_facts": [
+        "To make clear it is a boolean",
+        "To make clear it does not expect a stream to be passed in"
+      ],
+      "gold_evidence": [
+        "release:v10.0.0"
+      ],
+      "verification": "release:v10.0.0 'Rename the stream option to isStream' Why line."
+    },
+    {
+      "id": "gY5",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why did got v10 stop including its version number in the default `user-agent` header?",
+      "reference_answer": "The v10.0.0 release notes say importing package.json to get the version caused a lot of problems, and users should ideally set their own user-agent header anyway.",
+      "key_facts": [
+        "Importing package.json to read the version caused a lot of problems",
+        "Users should ideally set their own user-agent header"
+      ],
+      "gold_evidence": [
+        "release:v10.0.0"
+      ],
+      "verification": "release:v10.0.0 'Don't include the Got version in the default user-agent header (#911)' Why line."
+    },
+    {
+      "id": "gY6",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why did got v10 replace `{encoding: null}` with `{responseType: 'buffer'}` for getting a Buffer?",
+      "reference_answer": "The v10.0.0 release notes say passing {encoding: null} to get a Buffer was confusing, so responseType: 'buffer' is used instead.",
+      "key_facts": [
+        "The previous {encoding: null} approach was confusing",
+        "responseType: 'buffer' is the replacement"
+      ],
+      "gold_evidence": [
+        "release:v10.0.0"
+      ],
+      "verification": "release:v10.0.0 'Use the responseType option instead of encoding to get a Buffer (#940)' Why line."
+    },
+    {
+      "id": "gY7",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why did got v10 drop support for Node.js 8 and require Node.js 10?",
+      "reference_answer": "The v10.0.0 release notes say it was so that got can use stream.pipeline for more reliable stream handling, and Node.js 8 was going out of LTS at the end of that month anyway.",
+      "key_facts": [
+        "To use stream.pipeline for more reliable stream handling",
+        "Node.js 8 was about to leave LTS anyway"
+      ],
+      "gold_evidence": [
+        "release:v10.0.0"
+      ],
+      "verification": "release:v10.0.0 'Require Node.js 10' Why line."
+    },
+    {
+      "id": "gY8",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why did got v10 remove support for protocol-less URLs like `got('sindresorhus.com')`?",
+      "reference_answer": "The v10.0.0 release notes: to reduce ambiguity, since it was not clear from just reading the code what protocol it would default to.",
+      "key_facts": [
+        "To reduce ambiguity",
+        "It was not clear from reading the code what it would default to"
+      ],
+      "gold_evidence": [
+        "release:v10.0.0"
+      ],
+      "verification": "release:v10.0.0 'Remove support for protocol-less URLs in the url argument' Why line."
+    },
+    {
+      "id": "gY9",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "When got first added its `json` option (PR #45), why did it ignore the response's `Content-Type` header, and why was request serialization deliberately left out of the option?",
+      "reference_answer": "PR #45 says the option ignores Content-Type because servers often don't set it, and the author intentionally left serialization out because it would block the use case of parsing a JSON response while sending a stream, buffer or string body (a string could be sent as-is or stringified).",
+      "key_facts": [
+        "Content-Type was ignored because servers often don't set it",
+        "Serialization was left out so users could parse a JSON response while sending a non-JSON (stream/buffer/string) body"
+      ],
+      "gold_evidence": [
+        "PR#45"
+      ],
+      "verification": "PR#45 description and author comment (mined: pr_description)."
+    },
+    {
+      "id": "gY10",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why is got's HTTPS options namespace called `https` rather than `httpsOptions`, given that there is an option called `cacheOptions`?",
+      "reference_answer": "In PR #1795 the maintainer explains `cacheOptions` is only named that way because `cache` is already used for passing a cache adapter; `httpsOptions` adds no clarity over `https`, which is just a namespace for related options, like `retry` (not `retryOptions`).",
+      "key_facts": [
+        "cacheOptions is only named so because `cache` is already taken by the cache adapter option",
+        "`https` is a namespace for related options, like `retry`, so `httpsOptions` adds no clarity"
+      ],
+      "gold_evidence": [
+        "PR#1795"
+      ],
+      "verification": "PR#1795 maintainer comment (mined: pr_description)."
+    },
+    {
+      "id": "gY11",
+      "repo": "got",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why does got's stream documentation add `new stream.PassThrough()` at the end of a pipeline when POSTing with `got.stream.post`?",
+      "reference_answer": "documentation/3-streams.md says the PassThrough is required to catch read errors: without it, pipeline would only check errors when writing because there would be no stream to pipe the response to.",
+      "key_facts": [
+        "It is required to catch read errors",
+        "Without it pipeline only checks write errors, since there is no stream to pipe to"
+      ],
+      "gold_evidence": [
+        "documentation/3-streams.md:47-49"
+      ],
+      "verification": "documentation/3-streams.md:47-49 (mined: documentation)."
+    },
+    {
+      "id": "gU1",
+      "repo": "got",
+      "category": "unanswerable",
+      "expected": "abstain",
+      "split": "test",
+      "question": "Why does got's `retry.backoffLimit` default to `Number.POSITIVE_INFINITY`?",
+      "reference_answer": "No source states a reason for the infinite default. Issue #1599 requested an optional upper limit on backoff and backoffLimit was added later (commit 41c4136632), but neither explains the choice of an unlimited default.",
+      "key_facts": [
+        "The system says no documented rationale for the default was found"
+      ],
+      "gold_evidence": [],
+      "verification": "History search (issue#1599, commit:41c4136632, PR#2456, discussion#2309) and documentation/7-retry.md: no stated reason."
+    },
+    {
+      "id": "hY1",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why did httpx deprecate setting cookies per request on a client (e.g. `client.post(..., cookies=...)`)?",
+      "reference_answer": "The compatibility guide and PR #1574 say httpx prefers enforcing a stricter API because it provides clearer expectations around cookie persistence, particularly when redirects occur; cookies should be set on the client instead.",
+      "key_facts": [
+        "A stricter API gives clearer expectations about cookie persistence",
+        "Especially when redirects occur",
+        "Cookies should be set on the client instance instead"
+      ],
+      "gold_evidence": [
+        "PR#1574",
+        "docs/compatibility.md:103-122",
+        "CHANGELOG.md:391-401"
+      ],
+      "verification": "docs/compatibility.md:103-122; PR#1574; CHANGELOG 0.18.0."
+    },
+    {
+      "id": "hY2",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why did httpx swap the order in which it handles authentication and redirects?",
+      "reference_answer": "PR #1267 says it was needed because `request` event hooks should be triggered after any initial authentication is applied, but should not re-occur after redirects; the flow becomes create request -> apply auth -> follow redirects -> send.",
+      "key_facts": [
+        "request event hooks should run after initial authentication is applied",
+        "They should not re-run after redirects",
+        "The flow is: create request, apply auth, follow redirects, send"
+      ],
+      "gold_evidence": [
+        "PR#1267"
+      ],
+      "verification": "PR#1267 description (mined: pr_description)."
+    },
+    {
+      "id": "hY3",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why do httpx multipart uploads of files whose length can't be determined use chunked transfer encoding?",
+      "reference_answer": "The 0.23.2 CHANGELOG says this avoids loading the entire file into memory in order to determine the Content-Length.",
+      "key_facts": [
+        "To avoid loading the entire file into memory just to compute Content-Length"
+      ],
+      "gold_evidence": [
+        "CHANGELOG.md:166-177"
+      ],
+      "verification": "CHANGELOG.md:174 (0.23.2, #2382) (mined: documentation)."
+    },
+    {
+      "id": "hY4",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why does httpx's `Response.is_redirect` return True for all 3xx responses, even ones without a valid `Location`?",
+      "reference_answer": "The 0.20.0 CHANGELOG says it was done to allow a consistent set of properties across the HTTP status code types (is_informational, is_success, is_redirect, ...); `response.has_redirect_location` identifies properly formed redirects.",
+      "key_facts": [
+        "For a consistent set of properties across status-code classes",
+        "has_redirect_location tells whether there is a properly formed redirect"
+      ],
+      "gold_evidence": [
+        "CHANGELOG.md:326-331"
+      ],
+      "verification": "CHANGELOG.md:326-331 (mined: documentation)."
+    },
+    {
+      "id": "hY5",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why does httpx use a separate `content=` parameter for uploading raw text or bytes instead of `data=` as in Requests?",
+      "reference_answer": "docs/compatibility.md says httpx prefers `content` for raw text/binary uploads in order to better separate that usage from uploading form data with `data=`.",
+      "key_facts": [
+        "To separate raw content uploads from form-data uploads",
+        "data= is for form data; passing raw content via data= is deprecated"
+      ],
+      "gold_evidence": [
+        "docs/compatibility.md:70-91"
+      ],
+      "verification": "docs/compatibility.md:70-91 (mined: documentation)."
+    },
+    {
+      "id": "hY6",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why are httpx's custom authentication classes designed not to perform any I/O?",
+      "reference_answer": "docs/advanced/authentication.md says custom auth classes are designed not to perform I/O so that they can be used with both sync and async client instances.",
+      "key_facts": [
+        "So the same auth class works with both sync and async clients"
+      ],
+      "gold_evidence": [
+        "docs/advanced/authentication.md:120-130"
+      ],
+      "verification": "docs/advanced/authentication.md:125 (mined: documentation)."
+    },
+    {
+      "id": "hY7",
+      "repo": "httpx",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why do the httpx docs warn against creating `AsyncClient` instances inside a hot loop (e.g. `async with httpx.AsyncClient()` per request)?",
+      "reference_answer": "docs/async.md says that to get the most benefit from connection pooling you should not instantiate multiple client instances; use a single scoped client passed around, or a single global client.",
+      "key_facts": [
+        "Creating many clients defeats connection pooling",
+        "Use a single scoped or global client instead"
+      ],
+      "gold_evidence": [
+        "docs/async.md:55-58"
+      ],
+      "verification": "docs/async.md:57 (mined: documentation)."
+    },
+    {
+      "id": "hU1",
+      "repo": "httpx",
+      "category": "unanswerable",
+      "expected": "abstain",
+      "split": "test",
+      "question": "Why does httpx default `max_redirects` to 20?",
+      "reference_answer": "No documented rationale for the value 20 exists in the docs, CHANGELOG or history.",
+      "key_facts": [
+        "The system says no documented rationale for the value was found"
+      ],
+      "gold_evidence": [],
+      "verification": "History and docs search (PR#2831, PR#1183, discussion#2598): the default is never justified."
+    },
+    {
+      "id": "cY1",
+      "repo": "chi",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why weren't the `Limit`/`LimitIP` rate-limiting middlewares from PR #514 merged into chi's core?",
+      "reference_answer": "The maintainer said he couldn't merge it into go-chi directly because he has a design goal of not having any external dependencies inside the go-chi core; it went to a separate repository (go-chi/httprate) instead.",
+      "key_facts": [
+        "chi's core has a design goal of no external dependencies",
+        "The middleware went to a separate go-chi repository (httprate)"
+      ],
+      "gold_evidence": [
+        "PR#514"
+      ],
+      "verification": "PR#514 maintainer comment (mined: pr_description)."
+    },
+    {
+      "id": "cY2",
+      "repo": "chi",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why does chi's Throttle middleware respond with HTTP 429 rather than 503 by default?",
+      "reference_answer": "PR #528 argues 429 Too Many Requests matches what happened better than Service Unavailable: the service is technically still available, the client just sent too many requests (4xx = client fault, 5xx = server). The current code defaults the status to http.StatusTooManyRequests (configurable via ThrottleOpts.StatusCode).",
+      "key_facts": [
+        "The service is still available; the client sent too many requests",
+        "4xx signals a client-side problem rather than a server failure"
+      ],
+      "gold_evidence": [
+        "PR#528",
+        "middleware/throttle.go:47-62"
+      ],
+      "verification": "PR#528 (merged); middleware/throttle.go:56-59."
+    },
+    {
+      "id": "cY3",
+      "repo": "chi",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why does chi's NoCache middleware include `no-transform` in its Cache-Control header?",
+      "reference_answer": "PR #369 cites MDN: no-transform forbids proxies from transforming the resource (e.g. a non-transparent proxy converting image formats to save cache space or bandwidth) and from modifying Content-Encoding/Range/Type.",
+      "key_facts": [
+        "no-transform stops proxies from modifying or converting the response",
+        "e.g. a proxy converting image formats to save space or traffic"
+      ],
+      "gold_evidence": [
+        "PR#369"
+      ],
+      "verification": "PR#369 description; middleware/nocache.go:17."
+    },
+    {
+      "id": "cY4",
+      "repo": "chi",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why did chi release v5 with the `/v5` import path instead of continuing the v1.5.x line?",
+      "reference_answer": "The CHANGELOG says chi v1.5.x 'did not work out as planned, as the Go tooling is too powerful and chi's adoption is too wide', so the responsible thing was to release v5 adopting Go's semantic import versioning (github.com/go-chi/chi/v5).",
+      "key_facts": [
+        "v1.5.x did not work out because Go tooling and chi's wide adoption made it impractical",
+        "v5 adopts Go's semantic import versioning (/v5 import path)"
+      ],
+      "gold_evidence": [
+        "CHANGELOG.md:65-73"
+      ],
+      "verification": "CHANGELOG.md:65-73 (v5.0.0)."
+    },
+    {
+      "id": "cY5",
+      "repo": "chi",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why does chi's throttle middleware explicitly stop its backlog timer?",
+      "reference_answer": "PR #455 says the timer was not released until it reached the timeout, which could cause high CPU usage and keep the GC from reclaiming the Timer; the code now calls timer.Stop().",
+      "key_facts": [
+        "Without stopping, the timer lives until the timeout fires",
+        "That caused high CPU usage and prevented the GC from reclaiming the timer"
+      ],
+      "gold_evidence": [
+        "PR#455",
+        "middleware/throttle.go:100-125"
+      ],
+      "verification": "PR#455 (merged); middleware/throttle.go:105-118."
+    },
+    {
+      "id": "cY6",
+      "repo": "chi",
+      "category": "why",
+      "expected": "answer",
+      "split": "test",
+      "question": "Why doesn't chi's core support named routes (for reverse URL lookups)?",
+      "reference_answer": "In issue #43 the maintainer says named routes are not the concern of core chi; they would need a router enhancer outside the core library, which is possible because chi.Router is an interface you can wrap.",
+      "key_facts": [
+        "Named routes are not the concern of core chi",
+        "They belong in a router enhancer outside the core library (chi.Router is an interface that can be wrapped)"
+      ],
+      "gold_evidence": [
+        "issue#43"
+      ],
+      "verification": "issue#43 maintainer comments."
+    },
+    {
+      "id": "cU1",
+      "repo": "chi",
+      "category": "unanswerable",
+      "expected": "abstain",
+      "split": "test",
+      "question": "Why is the router library called \"chi\"?",
+      "reference_answer": "No documented naming rationale exists in the README, docs or history.",
+      "key_facts": [
+        "The system says no documented naming rationale was found"
+      ],
+      "gold_evidence": [],
+      "verification": "README and history search (issue#43 is about named routes, not the library name)."
+    },
+    {
+      "id": "cC1",
+      "repo": "chi",
+      "category": "what",
+      "expected": "answer",
+      "split": "test",
+      "question": "What does `chi.URLParam(r, key)` return, and where does it get the value from?",
+      "reference_answer": "It returns the URL parameter's value as a string (\"\" if absent). It calls URLParamFromCtx on the request context, which looks up chi's routing *Context via RouteContext (stored under RouteCtxKey) and calls Context.URLParam, which scans URLParams.Keys from the end and returns the matching value.",
+      "key_facts": [
+        "It reads chi's routing Context from the request's context (RouteCtxKey)",
+        "Context.URLParam looks the key up in URLParams and returns the value",
+        "It returns an empty string if there is no routing context or no such key"
+      ],
+      "gold_evidence": [
+        "context.go:11-30",
+        "context.go:124-131"
+      ],
+      "verification": "context.go:11-30, 124-131.",
+      "gold_mentions": [
+        "URLParamFromCtx",
+        "RouteContext"
+      ]
+    },
+    {
+      "id": "cC2",
+      "repo": "chi",
+      "category": "how",
+      "expected": "answer",
+      "split": "test",
+      "question": "What happens if you call `Mux.Use` to add middleware after routes have already been defined on that mux, and why?",
+      "reference_answer": "It panics with \"chi: all middlewares must be defined before routes on a mux\". Defining the first route builds the mux's single handler (updateRouteHandler chains the middleware stack with routeHTTP), after which the stack can't change; use With()/Group() for additional middleware.",
+      "key_facts": [
+        "Use panics if routes are already defined",
+        "The first route builds the mux handler from the middleware stack, freezing it",
+        "With() or Group() add middleware for specific routes instead"
+      ],
+      "gold_evidence": [
+        "mux.go:100-105",
+        "mux.go:525-527"
+      ],
+      "verification": "mux.go:100-105, 430-439, 521-527."
+    },
+    {
+      "id": "cC3",
+      "repo": "chi",
+      "category": "how",
+      "expected": "answer",
+      "split": "test",
+      "question": "How does `Mux.With` differ from `Mux.Use` in chi?",
+      "reference_answer": "Use appends to the mux's own middleware stack (and must be called before routes). With returns a new inline Mux that shares the parent's routing tree and pool but has its own copy of the middleware list plus the new middlewares; routes registered on it get those middlewares chained onto just their handlers.",
+      "key_facts": [
+        "Use adds middleware to the mux's whole stack",
+        "With returns a new inline mux sharing the same tree",
+        "Middlewares added via With apply only to routes registered on that inline mux"
+      ],
+      "gold_evidence": [
+        "mux.go:242-263",
+        "mux.go:100-105"
+      ],
+      "verification": "mux.go:242-263, 430-452."
+    },
+    {
+      "id": "cC4",
+      "repo": "chi",
+      "category": "how",
+      "expected": "answer",
+      "split": "test",
+      "question": "How does chi's `Mount` make a sub-router see only the remaining part of the URL path?",
+      "reference_answer": "Mount registers a mountHandler on pattern+\"*\" (and the pattern with/without trailing slash). When it runs, it sets rctx.RoutePath = mx.nextRoutePath(rctx), i.e. \"/\" plus the value of the trailing wildcard param, and clears that wildcard URLParam before calling the sub-handler, so the sub-router routes on the remaining path.",
+      "key_facts": [
+        "Mount registers a wildcard route pattern+'*'",
+        "The mount handler sets the routing context's RoutePath to the wildcard remainder (nextRoutePath)",
+        "It resets the wildcard URLParam before calling the sub-router"
+      ],
+      "gold_evidence": [
+        "mux.go:295-356",
+        "mux.go:501-509"
+      ],
+      "verification": "mux.go:323-336, 501-509."
+    },
+    {
+      "id": "cC5",
+      "repo": "chi",
+      "category": "what",
+      "expected": "answer",
+      "split": "test",
+      "question": "What response does chi send by default when a route matches the path but not the request method?",
+      "reference_answer": "routeHTTP calls the MethodNotAllowedHandler with the allowed methods; the default methodNotAllowedHandler sets an `Allow` header for each allowed method and responds 405 Method Not Allowed (a custom handler can be set with Mux.MethodNotAllowed).",
+      "key_facts": [
+        "It responds with 405 Method Not Allowed",
+        "It sets the Allow header with the methods the route supports",
+        "A custom handler can be set with MethodNotAllowed()"
+      ],
+      "gold_evidence": [
+        "mux.go:455-499",
+        "mux.go:529-540"
+      ],
+      "verification": "mux.go:487-491, 529-540."
+    },
+    {
+      "id": "cC6",
+      "repo": "chi",
+      "category": "where",
+      "expected": "answer",
+      "split": "test",
+      "question": "Where does chi build a middleware chain, and in what order do the middlewares wrap the handler?",
+      "reference_answer": "In chain.go: chain(middlewares, endpoint) wraps the endpoint with the last middleware first and iterates backwards, so the first middleware in the list is the outermost and runs first. Chain(...).Handler wraps this in a ChainHandler.",
+      "key_facts": [
+        "chain() in chain.go builds the handler",
+        "It wraps from the last middleware to the first",
+        "So the first middleware listed runs first (outermost)"
+      ],
+      "gold_evidence": [
+        "chain.go:36-49"
+      ],
+      "verification": "chain.go:5-49.",
+      "gold_mentions": [
+        "chain.go"
+      ]
+    },
+    {
+      "id": "cC7",
+      "repo": "chi",
+      "category": "what",
+      "expected": "answer",
+      "split": "test",
+      "question": "What does chi's `middleware.Timeout` do when a request exceeds the timeout?",
+      "reference_answer": "It wraps the request context with context.WithTimeout; after the next handler returns, if the context's error is DeadlineExceeded it writes 504 Gateway Timeout. Handlers must watch ctx.Done() themselves to stop work early.",
+      "key_facts": [
+        "It sets a context deadline with context.WithTimeout",
+        "If the deadline was exceeded it responds 504 Gateway Timeout",
+        "Handlers must check ctx.Done() to stop early"
+      ],
+      "gold_evidence": [
+        "middleware/timeout.go:1-48"
+      ],
+      "verification": "middleware/timeout.go:32-48 and doc comment."
+    },
+    {
+      "id": "cC8",
+      "repo": "chi",
+      "category": "how",
+      "expected": "answer",
+      "split": "test",
+      "question": "How does chi's `middleware.RealIP` decide which client IP to use?",
+      "reference_answer": "realIP checks, in order, True-Client-IP, X-Real-IP, then the first entry of X-Forwarded-For; if the chosen value isn't a valid IP it returns \"\". RealIP sets r.RemoteAddr to the result when non-empty.",
+      "key_facts": [
+        "It checks True-Client-IP first, then X-Real-IP, then X-Forwarded-For",
+        "For X-Forwarded-For it takes the first address",
+        "Invalid IPs are ignored; a valid one replaces r.RemoteAddr"
+      ],
+      "gold_evidence": [
+        "middleware/realip.go:28-53"
+      ],
+      "verification": "middleware/realip.go:28-53."
+    },
+    {
+      "id": "cC9",
+      "repo": "chi",
+      "category": "topology",
+      "expected": "answer",
+      "split": "test",
+      "question": "Trace the path of a request from `Mux.ServeHTTP` to the matched route handler in chi. Name each function and its file.",
+      "reference_answer": "Mux.ServeHTTP (mux.go) gets a routing Context from the pool, stores it in the request context and calls mx.handler, which updateRouteHandler built as chain(mx.middlewares, routeHTTP) (chain.go). Mux.routeHTTP (mux.go) resolves the route path and method and calls mx.tree.FindRoute (tree.go), which uses node.findRoute to match and records URL params; routeHTTP then calls the returned handler's ServeHTTP (or the 404/405 handler).",
+      "key_facts": [
+        "Mux.ServeHTTP sets up the routing Context and calls mx.handler",
+        "mx.handler is the middleware chain wrapping Mux.routeHTTP",
+        "routeHTTP calls tree.FindRoute (tree.go), which uses findRoute",
+        "The matched handler's ServeHTTP is called"
+      ],
+      "gold_evidence": [
+        "mux.go:63-92",
+        "mux.go:455-499",
+        "tree.go:383-406"
+      ],
+      "verification": "mux.go:63-92, 455-499, 525-527; tree.go:383-406.",
+      "gold_mentions": [
+        "ServeHTTP",
+        "routeHTTP",
+        "FindRoute",
+        "tree.go"
+      ]
+    },
+    {
+      "id": "cC10",
+      "repo": "chi",
+      "category": "how",
+      "expected": "answer",
+      "split": "test",
+      "question": "How does chi's `middleware.Recoverer` handle a panic, and which panic does it deliberately not recover?",
+      "reference_answer": "It recovers panics in a deferred function, logs them (via the request's log entry, or PrintPrettyStack) and writes 500 Internal Server Error unless the request is a Connection: Upgrade. It re-panics on http.ErrAbortHandler so the response to the client is aborted.",
+      "key_facts": [
+        "It recovers panics and responds 500 Internal Server Error",
+        "It logs the panic and stack",
+        "It does not recover http.ErrAbortHandler, re-panicking so the response is aborted"
+      ],
+      "gold_evidence": [
+        "middleware/recoverer.go:22-45"
+      ],
+      "verification": "middleware/recoverer.go:22-45."
     }
   ]
 }

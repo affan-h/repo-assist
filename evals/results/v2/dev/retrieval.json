@@ -1,0 +1,534 @@
+{
+  "summary": {
+    "all": {
+      "bm25": {
+        "questions": 51,
+        "recall@1": 0.3137254901960784,
+        "recall@5": 0.6666666666666666,
+        "recall@10": 0.803921568627451,
+        "mrr@10": 0.46304077186430126
+      },
+      "dense": {
+        "questions": 51,
+        "recall@1": 0.37254901960784315,
+        "recall@5": 0.6078431372549019,
+        "recall@10": 0.7254901960784313,
+        "mrr@10": 0.4785325241207595
+      },
+      "hybrid": {
+        "questions": 51,
+        "recall@1": 0.3333333333333333,
+        "recall@5": 0.7450980392156863,
+        "recall@10": 0.8235294117647058,
+        "mrr@10": 0.5099906629318394
+      }
+    },
+    "code_and_docs": {
+      "bm25": {
+        "questions": 38,
+        "recall@1": 0.2894736842105263,
+        "recall@5": 0.7368421052631579,
+        "recall@10": 0.8157894736842105,
+        "mrr@10": 0.46457811194653303
+      },
+      "dense": {
+        "questions": 38,
+        "recall@1": 0.39473684210526316,
+        "recall@5": 0.6052631578947368,
+        "recall@10": 0.7105263157894737,
+        "mrr@10": 0.49129072681704256
+      },
+      "hybrid": {
+        "questions": 38,
+        "recall@1": 0.3157894736842105,
+        "recall@5": 0.7894736842105263,
+        "recall@10": 0.868421052631579,
+        "mrr@10": 0.5151629072681704
+      }
+    },
+    "history": {
+      "bm25": {
+        "questions": 13,
+        "recall@1": 0.38461538461538464,
+        "recall@5": 0.46153846153846156,
+        "recall@10": 0.7692307692307693,
+        "mrr@10": 0.4585470085470086
+      },
+      "dense": {
+        "questions": 13,
+        "recall@1": 0.3076923076923077,
+        "recall@5": 0.6153846153846154,
+        "recall@10": 0.7692307692307693,
+        "mrr@10": 0.4412393162393162
+      },
+      "hybrid": {
+        "questions": 13,
+        "recall@1": 0.38461538461538464,
+        "recall@5": 0.6153846153846154,
+        "recall@10": 0.6923076923076923,
+        "mrr@10": 0.4948717948717949
+      }
+    }
+  },
+  "questions": [
+    {
+      "id": "W1",
+      "repo": "httpx",
+      "category": "what",
+      "history": false,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "W2",
+      "repo": "httpx",
+      "category": "what",
+      "history": false,
+      "bm25": 4,
+      "dense": 1,
+      "hybrid": 2
+    },
+    {
+      "id": "W3",
+      "repo": "httpx",
+      "category": "what",
+      "history": false,
+      "bm25": 1,
+      "dense": 16,
+      "hybrid": 5
+    },
+    {
+      "id": "W4",
+      "repo": "httpx",
+      "category": "what",
+      "history": false,
+      "bm25": 11,
+      "dense": 1,
+      "hybrid": 3
+    },
+    {
+      "id": "W5",
+      "repo": "httpx",
+      "category": "what",
+      "history": false,
+      "bm25": 2,
+      "dense": 5,
+      "hybrid": 2
+    },
+    {
+      "id": "H1",
+      "repo": "httpx",
+      "category": "how",
+      "history": false,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "H2",
+      "repo": "httpx",
+      "category": "how",
+      "history": false,
+      "bm25": 3,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "H3",
+      "repo": "httpx",
+      "category": "how",
+      "history": false,
+      "bm25": 1,
+      "dense": 2,
+      "hybrid": 1
+    },
+    {
+      "id": "H4",
+      "repo": "httpx",
+      "category": "how",
+      "history": false,
+      "bm25": 1,
+      "dense": 3,
+      "hybrid": 2
+    },
+    {
+      "id": "H5",
+      "repo": "httpx",
+      "category": "how",
+      "history": true,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "WH1",
+      "repo": "httpx",
+      "category": "where",
+      "history": false,
+      "bm25": 7,
+      "dense": 2,
+      "hybrid": 2
+    },
+    {
+      "id": "WH2",
+      "repo": "httpx",
+      "category": "where",
+      "history": false,
+      "bm25": 2,
+      "dense": 2,
+      "hybrid": 2
+    },
+    {
+      "id": "WH3",
+      "repo": "httpx",
+      "category": "where",
+      "history": false,
+      "bm25": 9,
+      "dense": null,
+      "hybrid": 14
+    },
+    {
+      "id": "WH4",
+      "repo": "httpx",
+      "category": "where",
+      "history": false,
+      "bm25": 2,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "WH5",
+      "repo": "httpx",
+      "category": "where",
+      "history": false,
+      "bm25": null,
+      "dense": null,
+      "hybrid": null
+    },
+    {
+      "id": "Y1",
+      "repo": "httpx",
+      "category": "why",
+      "history": true,
+      "bm25": 1,
+      "dense": 4,
+      "hybrid": 2
+    },
+    {
+      "id": "Y2",
+      "repo": "httpx",
+      "category": "why",
+      "history": true,
+      "bm25": null,
+      "dense": 8,
+      "hybrid": 15
+    },
+    {
+      "id": "Y3",
+      "repo": "httpx",
+      "category": "why",
+      "history": true,
+      "bm25": 8,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "Y4",
+      "repo": "httpx",
+      "category": "why",
+      "history": false,
+      "bm25": 1,
+      "dense": 12,
+      "hybrid": 5
+    },
+    {
+      "id": "Y5",
+      "repo": "httpx",
+      "category": "why",
+      "history": true,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "Y7",
+      "repo": "httpx",
+      "category": "why",
+      "history": true,
+      "bm25": 12,
+      "dense": 9,
+      "hybrid": 20
+    },
+    {
+      "id": "U2",
+      "repo": "httpx",
+      "category": "why",
+      "history": false,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "U3",
+      "repo": "httpx",
+      "category": "how",
+      "history": false,
+      "bm25": 3,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "T1",
+      "repo": "httpx",
+      "category": "topology",
+      "history": false,
+      "bm25": 20,
+      "dense": 12,
+      "hybrid": 5
+    },
+    {
+      "id": "T2",
+      "repo": "httpx",
+      "category": "topology",
+      "history": false,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "T3",
+      "repo": "httpx",
+      "category": "topology",
+      "history": false,
+      "bm25": 3,
+      "dense": 17,
+      "hybrid": 7
+    },
+    {
+      "id": "W6",
+      "repo": "got",
+      "category": "what",
+      "history": false,
+      "bm25": 4,
+      "dense": 7,
+      "hybrid": 2
+    },
+    {
+      "id": "W7",
+      "repo": "got",
+      "category": "what",
+      "history": false,
+      "bm25": 2,
+      "dense": 2,
+      "hybrid": 3
+    },
+    {
+      "id": "W8",
+      "repo": "got",
+      "category": "what",
+      "history": false,
+      "bm25": 4,
+      "dense": 1,
+      "hybrid": 2
+    },
+    {
+      "id": "W9",
+      "repo": "got",
+      "category": "what",
+      "history": false,
+      "bm25": 2,
+      "dense": 1,
+      "hybrid": 2
+    },
+    {
+      "id": "W10",
+      "repo": "got",
+      "category": "what",
+      "history": false,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "H6",
+      "repo": "got",
+      "category": "how",
+      "history": false,
+      "bm25": 12,
+      "dense": 4,
+      "hybrid": 6
+    },
+    {
+      "id": "H7",
+      "repo": "got",
+      "category": "how",
+      "history": false,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "H8",
+      "repo": "got",
+      "category": "how",
+      "history": false,
+      "bm25": 5,
+      "dense": 3,
+      "hybrid": 2
+    },
+    {
+      "id": "H9",
+      "repo": "got",
+      "category": "how",
+      "history": false,
+      "bm25": 2,
+      "dense": 11,
+      "hybrid": 5
+    },
+    {
+      "id": "WH6",
+      "repo": "got",
+      "category": "where",
+      "history": false,
+      "bm25": 3,
+      "dense": 6,
+      "hybrid": 2
+    },
+    {
+      "id": "WH7",
+      "repo": "got",
+      "category": "where",
+      "history": false,
+      "bm25": 17,
+      "dense": 7,
+      "hybrid": 10
+    },
+    {
+      "id": "WH8",
+      "repo": "got",
+      "category": "where",
+      "history": false,
+      "bm25": 19,
+      "dense": null,
+      "hybrid": null
+    },
+    {
+      "id": "WH9",
+      "repo": "got",
+      "category": "where",
+      "history": false,
+      "bm25": null,
+      "dense": null,
+      "hybrid": null
+    },
+    {
+      "id": "T4",
+      "repo": "got",
+      "category": "topology",
+      "history": false,
+      "bm25": 5,
+      "dense": null,
+      "hybrid": null
+    },
+    {
+      "id": "T5",
+      "repo": "got",
+      "category": "topology",
+      "history": false,
+      "bm25": 6,
+      "dense": 10,
+      "hybrid": 1
+    },
+    {
+      "id": "T6",
+      "repo": "got",
+      "category": "topology",
+      "history": false,
+      "bm25": 4,
+      "dense": null,
+      "hybrid": 5
+    },
+    {
+      "id": "Y9",
+      "repo": "got",
+      "category": "why",
+      "history": true,
+      "bm25": 1,
+      "dense": 4,
+      "hybrid": 1
+    },
+    {
+      "id": "Y10",
+      "repo": "got",
+      "category": "why",
+      "history": true,
+      "bm25": 10,
+      "dense": null,
+      "hybrid": null
+    },
+    {
+      "id": "Y13",
+      "repo": "got",
+      "category": "why",
+      "history": false,
+      "bm25": 1,
+      "dense": 1,
+      "hybrid": 1
+    },
+    {
+      "id": "Y14",
+      "repo": "got",
+      "category": "why",
+      "history": true,
+      "bm25": 2,
+      "dense": null,
+      "hybrid": 10
+    },
+    {
+      "id": "Y11",
+      "repo": "got",
+      "category": "unanswerable",
+      "history": true,
+      "bm25": 1,
+      "dense": 2,
+      "hybrid": 1
+    },
+    {
+      "id": "Y12",
+      "repo": "got",
+      "category": "why",
+      "history": true,
+      "bm25": 9,
+      "dense": 18,
+      "hybrid": 11
+    },
+    {
+      "id": "Y6",
+      "repo": "httpx",
+      "category": "why",
+      "history": false,
+      "bm25": 2,
+      "dense": 1,
+      "hybrid": 2
+    },
+    {
+      "id": "U7",
+      "repo": "got",
+      "category": "why",
+      "history": true,
+      "bm25": 8,
+      "dense": 2,
+      "hybrid": 3
+    },
+    {
+      "id": "U8",
+      "repo": "got",
+      "category": "unanswerable",
+      "history": true,
+      "bm25": null,
+      "dense": 1,
+      "hybrid": 2
+    }
+  ]
+}
