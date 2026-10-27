@@ -60,9 +60,12 @@ def test_long_threads_get_keyword_passages(repo_with_history):
     assert passages and all(p["parent"] == "issue#7" and p["embedding"] is None for p in passages)
 
 
-def test_history_search_lands_on_the_matching_comment(repo_with_history):
+@pytest.mark.parametrize("mode", ["bm25", "hybrid"])
+def test_history_search_lands_on_the_matching_comment(repo_with_history, mode):
+    # In hybrid mode the thread can also rank via its whole-text embedding; the result must still
+    # show the matching comment rather than the start of the thread.
     hits = retrieval.search_history(repo_with_history, "five second default hung connections worker pools",
-                                    mode="bm25")
+                                    mode=mode)
     top = hits[0]
     assert top.ref == "issue#7" and top.kind == "issue"
     assert DEEP_COMMENT in top.text and top.passage_offset > 0

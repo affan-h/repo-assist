@@ -180,20 +180,30 @@ def search_history(repo_id: str, query: str, k: int = 8, mode: SearchMode = "hyb
     try:
         candidates = search(repo_id, query, (*HISTORY_KINDS, "passage"), k=k * 4, mode=mode,
                             embedder=embedder, conn=conn)
+        # A thread can rank via its whole text (dense) or via one comment (keywords); either way,
+        # show the best-matching comment if one matched, since that is where the answer is.
+        best_passage: dict[str, Hit] = {}
+        for hit in candidates:
+            if hit.kind == "passage":
+                best_passage.setdefault(hit.parent, hit)
         results: dict[str, Hit] = {}
         for hit in candidates:
             parent_ref = hit.parent or hit.ref
             if parent_ref in results:
                 continue
-            if hit.kind == "passage":
-                thread = conn.execute(
-                    "SELECT kind, title, created_at FROM chunks WHERE repo_id = ? AND ref = ?", (repo_id, parent_ref)
-                ).fetchone()
-                if thread is None:
-                    continue
-                hit = Hit(id=hit.id, ref=parent_ref, kind=thread["kind"], path=None, start_line=None, end_line=None,
-                          symbol=None, title=thread["title"], text=hit.text, created_at=thread["created_at"],
-                          score=hit.score, passage_offset=int(hit.ref.rsplit("@", 1)[1]))
+            passage = best_passage.get(parent_ref)
+            if passage is not None:
+                if hit.kind == "passage":  # thread itself didn't rank: look up its metadata
+                    row = conn.execute("SELECT kind, title, created_at FROM chunks WHERE repo_id = ? AND ref = ?",
+                                       (repo_id, parent_ref)).fetchone()
+                    if row is None:
+                        continue
+                    kind, title, created_at = row["kind"], row["title"], row["created_at"]
+                else:
+                    kind, title, created_at = hit.kind, hit.title, hit.created_at
+                hit = Hit(id=hit.id, ref=parent_ref, kind=kind, path=None, start_line=None, end_line=None, symbol=None,
+                          title=title, text=passage.text, created_at=created_at, score=hit.score,
+                          passage_offset=int(passage.ref.rsplit("@", 1)[1]))
             results[parent_ref] = hit
             if len(results) == k:
                 break
