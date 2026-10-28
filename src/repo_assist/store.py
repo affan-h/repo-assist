@@ -238,11 +238,6 @@ def clear_repo_index(conn: sqlite3.Connection, repo_id: str) -> None:
         conn.execute(f"DELETE FROM {table} WHERE repo_id = ?", (repo_id,))
 
 
-def delete_repo(conn: sqlite3.Connection, repo_id: str) -> None:
-    clear_repo_index(conn, repo_id)
-    conn.execute("DELETE FROM repos WHERE id = ?", (repo_id,))
-
-
 # ---------------------------------------------------------------------------
 # Index writes
 # ---------------------------------------------------------------------------

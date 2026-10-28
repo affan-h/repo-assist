@@ -58,7 +58,6 @@ _SPECS: dict[str, dict[str, str]] = {
 }
 SYMBOL_LANGUAGES = sorted(_SPECS)
 _CONTAINERS = {"class", "interface", "module", "impl", "trait", "enum"}
-_FUNCTION_KINDS = {"function", "method"}
 _NEEDS_BODY = {"struct_specifier", "enum_specifier", "union_specifier", "class_specifier"}  # C/C++ type uses
 _FUNCTION_VALUES = {"arrow_function", "function_expression", "function"}
 _NAME_TYPES = {"identifier", "type_identifier", "field_identifier", "property_identifier", "constant", "name",

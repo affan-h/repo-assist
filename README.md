@@ -224,8 +224,7 @@ instead of the PR, a commit message, or the docs. cY3, cY4, gY7, gY8 and gY11 al
 gold source. The baseline only quotes when its single retrieval returned the gold source (15 answers) and otherwise
 declines. The agent quotes in 21 answers. These are exact checks of *which* source was used, not of correctness.
 
-The dev split hasn't been re-run on this version, to stay within the free quota. The v1 system's runs are kept
-in `evals/results/archive/`.
+The dev split hasn't been re-run on this version, to stay within the free quota.
 
 ## Quick start
 
@@ -300,7 +299,7 @@ src/repo_assist/
   cli.py         repo-assist ingest | ask | repos | serve
 frontend/        React + Vite UI
 evals/           questions (dev/test), runner, report, judge + judge audit, retrieval ablation,
-                 statistics, LLM cache, rationale miner, results (archive/ holds the v1 system's runs)
+                 statistics, LLM cache, rationale miner, results
 tests/           offline tests (fixture git repos, hash embedder, scripted models)
 ```
 

@@ -3,7 +3,6 @@
 
 # python
 .venv/
-venv/
 __pycache__/
 *.pyc
 *.egg-info/
@@ -11,8 +10,6 @@ __pycache__/
 
 # runtime data (database, clones, model cache)
 data/
-legacy-data/
-repos/
 
 # frontend
 frontend/node_modules/
