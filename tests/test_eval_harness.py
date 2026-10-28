@@ -115,6 +115,7 @@ def test_judge_audit_counts_agreement(eval_dirs):
 
     from evals import judge_audit
     record = {"id": "Q1", "system": "agent", "answer": "It's in pkg/client.py.", "abstained": False,
+              "citations": [], "quotes": [],
               "judgement": {"key_facts": [{"fact": ANSWERABLE["key_facts"][0], "covered": True},
                                           {"fact": ANSWERABLE["key_facts"][1], "covered": True}],
                             "claims": [], "contradicts_reference": False, "notes": ""}}
@@ -125,4 +126,5 @@ def test_judge_audit_counts_agreement(eval_dirs):
     result = asyncio.run(judge_audit.audit("test", model=second))
     assert result["decisions"] == 2 and result["agreement"] == 0.5
     assert [d["fact"] for d in result["disagreements"]] == [ANSWERABLE["key_facts"][0]]
+    assert result["correctness"]["agent"] == {"judge": 1.0, "second_judge": 0.5}
     assert "| Q1 | agent |" in judge_audit.render(result)

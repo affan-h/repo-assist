@@ -1526,18 +1526,21 @@
       "verification": "issue#43 maintainer comments."
     },
     {
-      "id": "cU1",
+      "id": "cY7",
       "repo": "chi",
-      "category": "unanswerable",
-      "expected": "abstain",
+      "category": "why",
+      "expected": "answer",
       "split": "test",
       "question": "Why is the router library called \"chi\"?",
-      "reference_answer": "No documented naming rationale exists in the README, docs or history.",
+      "reference_answer": "In issue #199 the author (@pkieltyka) says he chose the word `chi` as \"a flow of energy at balance\", from the word \"qi\" of Chinese culture (pronounced ch-ee).",
       "key_facts": [
-        "The system says no documented naming rationale was found"
+        "The name refers to a flow of energy at balance",
+        "It comes from the word \"qi\" in Chinese culture"
       ],
-      "gold_evidence": [],
-      "verification": "README and history search (issue#43 is about named routes, not the library name)."
+      "gold_evidence": [
+        "issue#199"
+      ],
+      "verification": "issue#199 ('Chi pronunciation?'), maintainer comment. Originally labelled unanswerable (cU1); relabelled after the test run, when the agent cited this thread. The label was wrong, not the system."
     },
     {
       "id": "cC1",

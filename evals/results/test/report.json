@@ -1,0 +1,515 @@
+{
+  "split": "test",
+  "questions": 37,
+  "total_questions": 37,
+  "agent_model": "google:gemini-3.5-flash-lite",
+  "judge_model": "google:gemini-3.5-flash-lite",
+  "systems": {
+    "agent": {
+      "overall": {
+        "n": 37,
+        "correctness": {
+          "mean": 0.7522522522522522,
+          "low": 0.617117117117117,
+          "high": 0.8783783783783784,
+          "n": 37
+        },
+        "correctness_answerable": {
+          "mean": 0.738095238095238,
+          "low": 0.5904761904761905,
+          "high": 0.8666666666666666,
+          "n": 35
+        },
+        "correct_declines": 1.0,
+        "false_declines": 0.17142857142857143,
+        "gold_cited": 0.5714285714285714,
+        "rationale_from_gold": 0.47619047619047616,
+        "claims_supported": 0.9827586206896551,
+        "latency_p50": 7.58,
+        "latency_p95": 19.66,
+        "llm_calls": 5.54054054054054,
+        "tokens": 26378.54054054054,
+        "errors": 1
+      },
+      "by_category": {
+        "how": {
+          "n": 5,
+          "correctness": {
+            "mean": 0.8,
+            "low": 0.4,
+            "high": 1.0,
+            "n": 5
+          },
+          "correctness_answerable": {
+            "mean": 0.8,
+            "low": 0.4,
+            "high": 1.0,
+            "n": 5
+          },
+          "correct_declines": null,
+          "false_declines": 0.2,
+          "gold_cited": 0.8,
+          "rationale_from_gold": 0.0,
+          "claims_supported": 1.0,
+          "latency_p50": 12.66,
+          "latency_p95": 13.6,
+          "llm_calls": 6.0,
+          "tokens": 23327.8,
+          "errors": 0
+        },
+        "topology": {
+          "n": 1,
+          "correctness": {
+            "mean": 1.0,
+            "low": 1.0,
+            "high": 1.0,
+            "n": 1
+          },
+          "correctness_answerable": {
+            "mean": 1.0,
+            "low": 1.0,
+            "high": 1.0,
+            "n": 1
+          },
+          "correct_declines": null,
+          "false_declines": 0.0,
+          "gold_cited": 1.0,
+          "rationale_from_gold": null,
+          "claims_supported": 1.0,
+          "latency_p50": 19.66,
+          "latency_p95": 19.66,
+          "llm_calls": 7.0,
+          "tokens": 37883.0,
+          "errors": 0
+        },
+        "unanswerable": {
+          "n": 2,
+          "correctness": {
+            "mean": 1.0,
+            "low": 1.0,
+            "high": 1.0,
+            "n": 2
+          },
+          "correctness_answerable": null,
+          "correct_declines": 1.0,
+          "false_declines": null,
+          "gold_cited": null,
+          "rationale_from_gold": null,
+          "claims_supported": null,
+          "latency_p50": 7.58,
+          "latency_p95": 20.04,
+          "llm_calls": 8.5,
+          "tokens": 45265.5,
+          "errors": 0
+        },
+        "what": {
+          "n": 3,
+          "correctness": {
+            "mean": 0.8888888888888888,
+            "low": 0.6666666666666666,
+            "high": 1.0,
+            "n": 3
+          },
+          "correctness_answerable": {
+            "mean": 0.8888888888888888,
+            "low": 0.6666666666666666,
+            "high": 1.0,
+            "n": 3
+          },
+          "correct_declines": null,
+          "false_declines": 0.0,
+          "gold_cited": 1.0,
+          "rationale_from_gold": null,
+          "claims_supported": 1.0,
+          "latency_p50": 7.74,
+          "latency_p95": 7.79,
+          "llm_calls": 3.3333333333333335,
+          "tokens": 9569.666666666666,
+          "errors": 0
+        },
+        "where": {
+          "n": 1,
+          "correctness": {
+            "mean": 1.0,
+            "low": 1.0,
+            "high": 1.0,
+            "n": 1
+          },
+          "correctness_answerable": {
+            "mean": 1.0,
+            "low": 1.0,
+            "high": 1.0,
+            "n": 1
+          },
+          "correct_declines": null,
+          "false_declines": 0.0,
+          "gold_cited": 1.0,
+          "rationale_from_gold": null,
+          "claims_supported": 1.0,
+          "latency_p50": 7.33,
+          "latency_p95": 7.33,
+          "llm_calls": 5.0,
+          "tokens": 16576.0,
+          "errors": 0
+        },
+        "why": {
+          "n": 25,
+          "correctness": {
+            "mean": 0.6866666666666668,
+            "low": 0.5133333333333333,
+            "high": 0.8533333333333333,
+            "n": 25
+          },
+          "correctness_answerable": {
+            "mean": 0.6866666666666668,
+            "low": 0.5133333333333333,
+            "high": 0.8533333333333333,
+            "n": 25
+          },
+          "correct_declines": null,
+          "false_declines": 0.2,
+          "gold_cited": 0.44,
+          "rationale_from_gold": 0.5,
+          "claims_supported": 0.975,
+          "latency_p50": 6.79,
+          "latency_p95": 19.02,
+          "llm_calls": 5.44,
+          "tokens": 27426.72,
+          "errors": 1
+        }
+      }
+    },
+    "baseline": {
+      "overall": {
+        "n": 37,
+        "correctness": {
+          "mean": 0.5630630630630631,
+          "low": 0.4099099099099099,
+          "high": 0.7162162162162162,
+          "n": 37
+        },
+        "correctness_answerable": {
+          "mean": 0.5380952380952381,
+          "low": 0.38095238095238093,
+          "high": 0.7,
+          "n": 35
+        },
+        "correct_declines": 1.0,
+        "false_declines": 0.42857142857142855,
+        "gold_cited": 0.5714285714285714,
+        "rationale_from_gold": 0.8666666666666667,
+        "claims_supported": 0.95,
+        "latency_p50": 2.02,
+        "latency_p95": 5.78,
+        "llm_calls": 1.054054054054054,
+        "tokens": 3777.7567567567567,
+        "errors": 0
+      },
+      "by_category": {
+        "how": {
+          "n": 5,
+          "correctness": {
+            "mean": 0.4,
+            "low": 0.0,
+            "high": 0.8,
+            "n": 5
+          },
+          "correctness_answerable": {
+            "mean": 0.4,
+            "low": 0.0,
+            "high": 0.8,
+            "n": 5
+          },
+          "correct_declines": null,
+          "false_declines": 0.6,
+          "gold_cited": 0.8,
+          "rationale_from_gold": null,
+          "claims_supported": 1.0,
+          "latency_p50": 2.31,
+          "latency_p95": 5.88,
+          "llm_calls": 1.4,
+          "tokens": 5394.0,
+          "errors": 0
+        },
+        "topology": {
+          "n": 1,
+          "correctness": {
+            "mean": 0.0,
+            "low": 0.0,
+            "high": 0.0,
+            "n": 1
+          },
+          "correctness_answerable": {
+            "mean": 0.0,
+            "low": 0.0,
+            "high": 0.0,
+            "n": 1
+          },
+          "correct_declines": null,
+          "false_declines": 1.0,
+          "gold_cited": 0.0,
+          "rationale_from_gold": null,
+          "claims_supported": null,
+          "latency_p50": 5.78,
+          "latency_p95": 5.78,
+          "llm_calls": 1.0,
+          "tokens": 4098.0,
+          "errors": 0
+        },
+        "unanswerable": {
+          "n": 2,
+          "correctness": {
+            "mean": 1.0,
+            "low": 1.0,
+            "high": 1.0,
+            "n": 2
+          },
+          "correctness_answerable": null,
+          "correct_declines": 1.0,
+          "false_declines": null,
+          "gold_cited": null,
+          "rationale_from_gold": null,
+          "claims_supported": null,
+          "latency_p50": 2.13,
+          "latency_p95": 2.63,
+          "llm_calls": 1.0,
+          "tokens": 3111.5,
+          "errors": 0
+        },
+        "what": {
+          "n": 3,
+          "correctness": {
+            "mean": 0.6666666666666666,
+            "low": 0.0,
+            "high": 1.0,
+            "n": 3
+          },
+          "correctness_answerable": {
+            "mean": 0.6666666666666666,
+            "low": 0.0,
+            "high": 1.0,
+            "n": 3
+          },
+          "correct_declines": null,
+          "false_declines": 0.3333333333333333,
+          "gold_cited": 0.6666666666666666,
+          "rationale_from_gold": null,
+          "claims_supported": 1.0,
+          "latency_p50": 2.22,
+          "latency_p95": 3.2,
+          "llm_calls": 1.0,
+          "tokens": 4075.0,
+          "errors": 0
+        },
+        "where": {
+          "n": 1,
+          "correctness": {
+            "mean": 1.0,
+            "low": 1.0,
+            "high": 1.0,
+            "n": 1
+          },
+          "correctness_answerable": {
+            "mean": 1.0,
+            "low": 1.0,
+            "high": 1.0,
+            "n": 1
+          },
+          "correct_declines": null,
+          "false_declines": 0.0,
+          "gold_cited": 1.0,
+          "rationale_from_gold": null,
+          "claims_supported": 1.0,
+          "latency_p50": 2.95,
+          "latency_p95": 2.95,
+          "llm_calls": 1.0,
+          "tokens": 3629.0,
+          "errors": 0
+        },
+        "why": {
+          "n": 25,
+          "correctness": {
+            "mean": 0.5533333333333333,
+            "low": 0.3733333333333333,
+            "high": 0.7333333333333333,
+            "n": 25
+          },
+          "correctness_answerable": {
+            "mean": 0.5533333333333333,
+            "low": 0.3733333333333333,
+            "high": 0.7333333333333333,
+            "n": 25
+          },
+          "correct_declines": null,
+          "false_declines": 0.4,
+          "gold_cited": 0.52,
+          "rationale_from_gold": 0.8666666666666667,
+          "claims_supported": 0.9333333333333333,
+          "latency_p50": 1.94,
+          "latency_p95": 5.04,
+          "llm_calls": 1.0,
+          "tokens": 3465.28,
+          "errors": 0
+        }
+      }
+    }
+  },
+  "comparison": {
+    "correctness_diff": 0.1891891891891892,
+    "low": 0.027027027027027025,
+    "high": 0.35135135135135137,
+    "a_only": 9,
+    "b_only": 2,
+    "p_value": 0.0654296875
+  },
+  "per_question": {
+    "cC1": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "cC10": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "cC2": {
+      "agent": 0.0,
+      "baseline": 0.0
+    },
+    "cC3": {
+      "agent": 1.0,
+      "baseline": 0.0
+    },
+    "cC4": {
+      "agent": 1.0,
+      "baseline": 0.0
+    },
+    "cC5": {
+      "agent": 0.6666666666666666,
+      "baseline": 0.0
+    },
+    "cC6": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "cC7": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "cC8": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "cC9": {
+      "agent": 1.0,
+      "baseline": 0.0
+    },
+    "cY1": {
+      "agent": 0.0,
+      "baseline": 1.0
+    },
+    "cY2": {
+      "agent": 1.0,
+      "baseline": 0.0
+    },
+    "cY3": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "cY4": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "cY5": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "cY6": {
+      "agent": 1.0,
+      "baseline": 0.0
+    },
+    "cY7": {
+      "agent": 1.0,
+      "baseline": 0.0
+    },
+    "gU1": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "gY1": {
+      "agent": 0.6666666666666666,
+      "baseline": 0.6666666666666666
+    },
+    "gY10": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "gY11": {
+      "agent": 1.0,
+      "baseline": 0.0
+    },
+    "gY2": {
+      "agent": 0.0,
+      "baseline": 0.0
+    },
+    "gY3": {
+      "agent": 0.0,
+      "baseline": 0.0
+    },
+    "gY4": {
+      "agent": 1.0,
+      "baseline": 0.0
+    },
+    "gY5": {
+      "agent": 0.0,
+      "baseline": 0.0
+    },
+    "gY6": {
+      "agent": 0.0,
+      "baseline": 0.0
+    },
+    "gY7": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "gY8": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "gY9": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "hU1": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "hY1": {
+      "agent": 1.0,
+      "baseline": 0.6666666666666666
+    },
+    "hY2": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "hY3": {
+      "agent": 1.0,
+      "baseline": 1.0
+    },
+    "hY4": {
+      "agent": 0.0,
+      "baseline": 1.0
+    },
+    "hY5": {
+      "agent": 0.5,
+      "baseline": 0.5
+    },
+    "hY6": {
+      "agent": 0.0,
+      "baseline": 0.0
+    },
+    "hY7": {
+      "agent": 1.0,
+      "baseline": 1.0
+    }
+  }
+}

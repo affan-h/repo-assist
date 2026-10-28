@@ -7,25 +7,41 @@ evidence isn't there, it says so.
 
 ```text
 $ repo-assist ask httpx "Why was sync support dropped in httpx 0.8?"
-  -> search_history(query='sync support dropped 0.8')
+  -> search_history(query='sync support httpx 0.8')
      8 results
-  -> read_thread(ref='issue#572')
-     Supporting Sync. Done right. (chars 0-6000 of 7662)
+  -> read_thread(ref='PR#544')
+     Drop sync (chars 0-1317 of 1317)
+  -> read_thread(ref='issue#522')
+     Discussion about dropping sync support. (chars 0-6000 of 30000)
 
-  httpx 0.8 dropped the sync interface because bridging it onto the async core through Sync/Async
-  subclasses was producing poorer code, and it failed in environments with top-level async support,
-  such as Jupyter [1].
+  16.5s, 5 LLM calls, 3 tool calls, 21446 tokens
 
-  > "Have Sync and Async variant classes both subclassing Base classes was leading to poorer, less
-  >  comprehensible code."  (issue#572)
+  In httpx 0.8, sync support was dropped so that the project could focus exclusively on providing an
+  async client and simplify the codebase [issue#587, PR#544].
+
+  According to the maintainers, maintaining both sync and async support resulted in awkward subclasses
+  and abstractions (such as `BaseRequest`, `BaseResponse`, `AsyncRequest`, `AsyncResponse`, `Client`,
+  `AsyncClient`, and separate dispatchers), complex bridging code, and differing type annotations [...]
+
+  > "Subclassing in order to provide sync+async, leaading to BaseRequest, BaseResponse, AsyncRequest,
+  >  AsyncResponse, Request, Response, Client, AsyncClient, Dispatcher, AsyncDispatcher just *doesn't*
+  >  feel legible when getting to grips with any particular part of the codebase. [...]"  (PR#544)
 
 Sources:
-  [1] issue#572  https://github.com/encode/httpx/issues/572
+  [1] PR#544     https://github.com/encode/httpx/pull/544
+  [2] issue#522  https://github.com/encode/httpx/issues/522
+  [3] issue#587  https://github.com/encode/httpx/issues/587
 ```
+
+(Real output, line-wrapped and shortened where marked `[...]`; the quote's typo is the maintainer's.)
 
 It indexes code in **15 languages with symbol extraction** (Python, JavaScript/TypeScript, Go, Java, Kotlin, Rust,
 C, C++, C#, Ruby, PHP, Swift, Scala), plus any other language tree-sitter has a grammar for, as plain chunks.
 History comes from git and GitHub. It runs on the Gemini free tier with local embeddings and one SQLite file.
+
+On 37 held-out questions it scores **75% vs 56%** for single-shot RAG over the same index (+19 points, 95% CI
++3 to +35), at about 5× the LLM calls. A second, independent judge model changes both numbers by about 4 points
+but not the gap. [Results and failure analysis](#end-to-end-results).
 
 ## How it works
 
@@ -107,11 +123,14 @@ python evals/run_eval.py --split test     # agent + baseline on every question; 
 
 **Questions** (`evals/questions.json`), in two splits:
 
-- **test** (37, held out): written before the system ran on them; these give the headline numbers. 24 are "why"
+- **test** (37, held out): written before the system ran on them; these give the headline numbers. 25 are "why"
   questions whose gold answers are the maintainers' own stated reasons: release-note "Why:" lines, PR descriptions,
-  CHANGELOG entries and docs. They were mined with `evals/mine_rationale.py`, then checked and written up by hand.
-  10 are code questions on a Go repository (go-chi/chi), and 3 are unanswerable, verified to have no documented
-  rationale.
+  CHANGELOG entries, docs and issue comments. They were mined with `evals/mine_rationale.py`, then checked and
+  written up by hand. 10 are code questions on a Go repository (go-chi/chi), and 2 are unanswerable, verified to
+  have no documented rationale. One label was corrected after the run: "Why is the router called chi?" was written
+  as unanswerable, but the agent answered it from a maintainer comment in chi issue #199 that the manual search had
+  missed. It is now an answerable question (cY7, original label kept in its `verification` field). Before the
+  correction the agent's correctness was 73% and the baseline's 59%.
 - **dev** (56): the original question bank on httpx (Python) and got (TypeScript), covering what/where/how/topology
   and why questions. It was used while building the system. Re-checking it against the pinned source and GitHub
   threads changed 22 of the 56 reference answers, three of them (W10, Y12, Y6) because the system cited evidence the
@@ -144,17 +163,69 @@ Recall@5, i.e. whether a chunk overlapping the gold evidence is in the top 5 (`e
 |---|---|---|---|---|
 | dev (51) | code & docs | 0.74 | 0.61 | **0.79** |
 | dev | history | 0.46 | **0.62** | **0.62** |
-| test (34) | code & docs | 0.88 | 0.76 | **0.94** |
-| test | history | **1.00** | 0.59 | 0.71 |
+| test (35) | code & docs | 0.88 | 0.76 | **0.94** |
+| test | history | **0.94** | 0.56 | 0.67 |
 
 Hybrid is the most reliable retriever for code and docs on both splits, which is why it's used. History is mixed. On
-dev, embeddings help. On test, keyword search alone found every gold thread, most likely because those questions
-were mined from the maintainers' sentences and reuse their exact wording ("prefixUrl", "isStream"), which favours
-BM25. The retriever was not retuned after seeing this, because that would be tuning on the test set.
+dev, embeddings help. On test, keyword search alone found 17 of the 18 gold threads, most likely because those
+questions were mined from the maintainers' sentences and reuse their exact wording ("prefixUrl", "isStream"), which
+favours BM25. The one test question that wasn't mined ("Why is the router called chi?") is missed by all three
+retrievers when the raw question is the query. The agent still found it, because it writes its own search queries.
+The retriever was not retuned after seeing this, because that would be tuning on the test set.
 
 ### End-to-end results
 
-<!-- RESULTS -->
+Test split, 37 held-out questions, one run per system on Gemini 3.5 Flash-Lite (full report:
+[`evals/results/test/report.md`](evals/results/test/report.md); every answer, trace and judgement is in
+`answers.jsonl` next to it). Brackets are 95% bootstrap intervals.
+
+| Metric | Agent | Single-shot RAG baseline |
+|---|---|---|
+| **Correctness** | **75%** [62–88] | 56% [41–72] |
+| Correctness, "why" questions (25) | 69% | 55% |
+| Correctness, code questions on chi (10) | 87% | 50% |
+| Correct declines (2 unanswerable) | 2 / 2 | 2 / 2 |
+| False declines (35 answerable) | 17% | 43% |
+| Claims supported by the cited evidence | 98% | 95% |
+| LLM calls / tokens per question | 5.5 / 26k | 1.1 / 3.8k |
+| Latency p50 / p95 | 7.6s / 19.7s | 2.0s / 5.8s |
+
+**Agent vs baseline on the same questions:** +19 points [+3, +35]. The agent alone solved 9 questions and the
+baseline alone solved 2 (exact McNemar p = 0.065). The agent is better, but with 37 questions the size of the gap is
+uncertain. It costs about 5× the LLM calls and 7× the tokens. Most of the gain comes from questions the baseline
+declines because one retrieval pass didn't surface the evidence. The agent's extra searches, `read_thread` and
+`code_history` find it.
+
+**Is the judge trustworthy?** `evals/judge_audit.py` had Gemma 4 re-make all 116 key-fact decisions:
+[91% agreement, Cohen's kappa 0.51](evals/results/test/judge_audit.md). In 9 of the 11 disagreements the main judge
+said "covered" and Gemma said "not covered", and the two spot-checked cases (cC7, hY7) side with Gemma, so the main
+judge is somewhat lenient. Rescoring with Gemma's verdicts gives agent 71% and baseline 52%. The absolute numbers
+move about 4 points, but the gap between the systems doesn't change.
+
+**Where the agent fails** (8 questions scored 0, all read by hand):
+
+- **Release notes it never opened (4).** Got's v10.0.0 release notes give the reason for gY2, gY3, gY5 and gY6. The
+  agent found the PRs and commits that *made* each change. They describe what changed, not why, so it declined
+  (gY3, gY6), ran out of steps (gY5), or quoted an older issue thread instead (gY2). History search ranks a long
+  release note below the focused PR threads, and the agent has no way to ask for "the notes of the release that
+  shipped this".
+- **The source was one call away (2).** For cY1 it searched for "514" but never called `read_thread("PR#514")`. For
+  hY4 it never searched the CHANGELOG, which the baseline's single retrieval did find. These are the baseline's only
+  two wins.
+- **Wrong reason or missing facts (2):** hY6 and cC2.
+
+These were not fixed. They were found on the test split, and tuning against them would make the numbers above
+meaningless. They are the next things to work on, measured on dev.
+
+**Two metrics that look bad for the agent but aren't.** *Gold evidence cited* is 57% for both systems, and
+*rationale quoted from a gold source* is 48% for the agent vs 87% for the baseline. The gold lists name the one
+source a question was mined from. The agent often answers correctly from another real source: a release note
+instead of the PR, a commit message, or the docs. cY3, cY4, gY7, gY8 and gY11 all scored 100% without citing the
+gold source. The baseline only quotes when its single retrieval returned the gold source (15 answers) and otherwise
+declines. The agent quotes in 21 answers. These are exact checks of *which* source was used, not of correctness.
+
+The dev split hasn't been re-run on this version, to stay within the free quota. The v1 system's runs are kept
+in `evals/results/archive/`.
 
 ## Quick start
 
@@ -236,8 +307,9 @@ tests/           offline tests (fixture git repos, hash embedder, scripted model
 ## Limitations
 
 - **The judge grades its own model family.** Both agent and judge run on Gemini 3.5 Flash-Lite, because the free tier
-  allows only 20 requests/day on stronger models. Deterministic metrics carry the main claims, and every judgement is
-  saved for inspection. Manual review of failures found occasional misgrades in both directions.
+  allows only 20 requests/day on stronger models. A second model (Gemma 4) agrees on 91% of key-fact decisions
+  (kappa 0.51) and finds the main judge slightly lenient. That moves correctness about 4 points for both systems but
+  not the gap between them. Every judgement is saved for inspection.
 - **Small evaluation sets.** 37 test questions give wide intervals, so read the bootstrap ranges, not the point
   estimates. Each configuration is run once.
 - **Mined questions share wording with their sources**, which flatters keyword retrieval (see the retrieval ablation).

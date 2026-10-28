@@ -1,0 +1,100 @@
+{
+  "judge_model": "google:gemini-3.5-flash-lite",
+  "second_judge_model": "gemma-4-26b-a4b-it",
+  "answers": 49,
+  "unparsed": 0,
+  "decisions": 116,
+  "agreement": 0.9051724137931034,
+  "kappa": 0.5114854517611024,
+  "judge_covered_rate": 0.9224137931034483,
+  "second_judge_covered_rate": 0.8620689655172413,
+  "correctness": {
+    "agent": {
+      "judge": 0.7522522522522522,
+      "second_judge": 0.7117117117117117
+    },
+    "baseline": {
+      "judge": 0.5630630630630631,
+      "second_judge": 0.5225225225225225
+    }
+  },
+  "disagreements": [
+    {
+      "id": "gY2",
+      "system": "agent",
+      "fact": "The rename makes clear the option does not do any URL resolution",
+      "judge": false,
+      "second_judge": true
+    },
+    {
+      "id": "hY2",
+      "system": "baseline",
+      "fact": "The flow is: create request, apply auth, follow redirects, send",
+      "judge": true,
+      "second_judge": false
+    },
+    {
+      "id": "hY6",
+      "system": "agent",
+      "fact": "So the same auth class works with both sync and async clients",
+      "judge": false,
+      "second_judge": true
+    },
+    {
+      "id": "cY6",
+      "system": "agent",
+      "fact": "They belong in a router enhancer outside the core library (chi.Router is an interface that can be wrapped)",
+      "judge": true,
+      "second_judge": false
+    },
+    {
+      "id": "hY7",
+      "system": "agent",
+      "fact": "Use a single scoped or global client instead",
+      "judge": true,
+      "second_judge": false
+    },
+    {
+      "id": "hY7",
+      "system": "baseline",
+      "fact": "Use a single scoped or global client instead",
+      "judge": true,
+      "second_judge": false
+    },
+    {
+      "id": "cC1",
+      "system": "baseline",
+      "fact": "It returns an empty string if there is no routing context or no such key",
+      "judge": true,
+      "second_judge": false
+    },
+    {
+      "id": "cC3",
+      "system": "agent",
+      "fact": "With returns a new inline mux sharing the same tree",
+      "judge": true,
+      "second_judge": false
+    },
+    {
+      "id": "cC4",
+      "system": "agent",
+      "fact": "It resets the wildcard URLParam before calling the sub-router",
+      "judge": true,
+      "second_judge": false
+    },
+    {
+      "id": "cC7",
+      "system": "agent",
+      "fact": "It sets a context deadline with context.WithTimeout",
+      "judge": true,
+      "second_judge": false
+    },
+    {
+      "id": "cC7",
+      "system": "baseline",
+      "fact": "It sets a context deadline with context.WithTimeout",
+      "judge": true,
+      "second_judge": false
+    }
+  ]
+}

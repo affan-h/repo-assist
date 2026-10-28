@@ -25,6 +25,8 @@ from pydantic_ai import Agent  # noqa: E402
 
 from evals.common import load_questions, results_dir  # noqa: E402
 from evals.llm_cache import CachedModel  # noqa: E402
+from evals.report import score  # noqa: E402
+from evals.run_eval import with_retry  # noqa: E402
 from evals.stats import cohens_kappa  # noqa: E402
 from repo_assist.config import get_settings  # noqa: E402
 
@@ -52,7 +54,7 @@ async def second_opinion(question: dict, record: dict, model) -> list[bool] | No
     facts = [f["fact"] for f in record["judgement"]["key_facts"]]
     prompt = PROMPT.format(question=question["question"], answer=record["answer"],
                            facts="\n".join(f"{i}. {fact}" for i, fact in enumerate(facts, start=1)))
-    result = await SECOND_JUDGE.run(prompt, model=model)
+    result = await with_retry(lambda: SECOND_JUDGE.run(prompt, model=model))
     return parse_verdicts(result.output, len(facts))
 
 
@@ -64,8 +66,13 @@ async def audit(split: str, model=None) -> dict:
     model = model or CachedModel(AUDIT_MODEL, get_settings().data_dir / "llm_cache.db")
 
     first, second, disagreements, unparsed = [], [], [], 0
+    rescored = {}  # answer -> its judgement with the second judge's key-fact verdicts
     for record in judged:
-        verdicts = await second_opinion(questions[record["id"]], record, model)
+        try:
+            verdicts = await second_opinion(questions[record["id"]], record, model)
+        except Exception as exc:  # a persistent provider error on one answer: skip it, don't lose the rest
+            print(f"{record['id']} {record['system']}: second judge failed ({type(exc).__name__})", flush=True)
+            verdicts = None
         if verdicts is None:
             unparsed += 1
             continue
@@ -75,6 +82,8 @@ async def audit(split: str, model=None) -> dict:
             if fact["covered"] != verdict:
                 disagreements.append({"id": record["id"], "system": record["system"], "fact": fact["fact"],
                                       "judge": fact["covered"], "second_judge": verdict})
+        rescored[(record["id"], record["system"])] = {**record["judgement"], "key_facts": [
+            {**f, "covered": v} for f, v in zip(record["judgement"]["key_facts"], verdicts, strict=True)]}
     result = {
         "judge_model": get_settings().judge_model, "second_judge_model": str(getattr(model, "model_name", model)),
         "answers": len(judged) - unparsed, "unparsed": unparsed, "decisions": len(first),
@@ -82,9 +91,23 @@ async def audit(split: str, model=None) -> dict:
         "kappa": cohens_kappa(first, second) if first else None,
         "judge_covered_rate": sum(first) / len(first) if first else None,
         "second_judge_covered_rate": sum(second) / len(second) if second else None,
+        "correctness": _correctness(questions, records, rescored),
         "disagreements": disagreements,
     }
     return result
+
+
+def _correctness(questions: dict, records: list[dict], rescored: dict) -> dict:
+    """Mean correctness per system under each judge (the same answers, only key-fact verdicts swapped)."""
+    latest = {(r["id"], r["system"]): r for r in records if r["id"] in questions}
+    out = {}
+    for system in sorted({s for _, s in latest}):
+        mine = {i: r for (i, s), r in latest.items() if s == system}
+        judge = [score(questions[i], r)["correct"] for i, r in mine.items()]
+        second = [score(questions[i], {**r, "judgement": rescored.get((i, system), r["judgement"])})["correct"]
+                  for i, r in mine.items()]
+        out[system] = {"judge": sum(judge) / len(judge), "second_judge": sum(second) / len(second)}
+    return out
 
 
 def render(result: dict) -> str:
@@ -94,7 +117,10 @@ def render(result: dict) -> str:
              f"{result['decisions']} key-fact decisions from {result['answers']} answers: agreement "
              f"{result['agreement']:.0%}, Cohen's kappa {result['kappa']:.2f}. 'Covered' rate: judge "
              f"{result['judge_covered_rate']:.0%}, second judge {result['second_judge_covered_rate']:.0%}."
-             + (f" ({result['unparsed']} answers skipped: second judge reply not parseable.)" if result["unparsed"] else ""),
+             + (f" ({result['unparsed']} answers skipped: second judge failed or its reply was not parseable.)" if result["unparsed"] else ""),
+             "", "Correctness under each judge (same answers): " + "; ".join(
+                 f"{s} {c['judge']:.0%} (judge) vs {c['second_judge']:.0%} (second judge)"
+                 for s, c in result["correctness"].items()) + ".",
              "", "| Question | System | Key fact | Judge | Second judge |", "|---|---|---|---|---|"]
     for d in result["disagreements"]:
         lines.append(f"| {d['id']} | {d['system']} | {d['fact']} | {'yes' if d['judge'] else 'no'} | "
