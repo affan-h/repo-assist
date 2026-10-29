@@ -1,4 +1,4 @@
-# Single service: FastAPI serves the API and the built React UI on :8000.
+# FastAPI serves the API and the built React UI on :8000; Qdrant holds the vector index.
 # Requires GEMINI_API_KEY (answers) and, for issue/PR/discussion history,
 # GITHUB_TOKEN in a .env file next to this one (see .env.example).
 services:
@@ -7,8 +7,18 @@ services:
     ports:
       - "8000:8000"
     env_file: .env
+    environment:
+      REPO_ASSIST_QDRANT_URL: http://qdrant:6333
     volumes:
       - repo-assist-data:/data
+    depends_on:
+      - qdrant
+
+  qdrant:
+    image: qdrant/qdrant:v1.19.2
+    volumes:
+      - qdrant-data:/qdrant/storage
 
 volumes:
   repo-assist-data:
+  qdrant-data:

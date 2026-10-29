@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from repo_assist import store
+from repo_assist import store, vectors
 from repo_assist.config import get_settings
 from repo_assist.ingest import git
 
@@ -88,9 +88,20 @@ class HashEmbedder:
 
 
 @pytest.fixture
-def data_dir(tmp_path, monkeypatch):
+def backend():
+    """Vector search backend; parametrize a test over ["exact", "qdrant"] to run it on both."""
+    return "exact"
+
+
+@pytest.fixture
+def data_dir(tmp_path, monkeypatch, backend):
     monkeypatch.setenv("REPO_ASSIST_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    if backend == "qdrant":
+        monkeypatch.setenv("REPO_ASSIST_QDRANT_URL", ":memory:")  # in-process Qdrant, same API as a server
+    else:
+        monkeypatch.delenv("REPO_ASSIST_QDRANT_URL", raising=False)
+    monkeypatch.setattr(vectors, "_index", None)
     get_settings.cache_clear()
     store.init_db()
     yield tmp_path / "data"

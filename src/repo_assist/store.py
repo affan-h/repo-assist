@@ -1,9 +1,8 @@
-"""SQLite storage: one file holds repos, chunks, the BM25 index, vectors, and the symbol table.
+"""SQLite storage: one file holds repos, chunks, the BM25 index, embeddings, and the symbol table.
 
-Why one SQLite file instead of a vector database: an indexed repository is a few
-thousand chunks. Exact cosine search over that with numpy takes about a millisecond,
-and FTS5 gives BM25 in the same file. A separate vector service would add
-deployment and consistency work without improving results at this scale.
+SQLite is the source of record. FTS5 gives BM25 in the same file, and the embeddings
+stored here feed the vector index (vectors.py): Qdrant when configured, rebuilt from
+this file at any time, or exact in-process search without it.
 """
 
 import json

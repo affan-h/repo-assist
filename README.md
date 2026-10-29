@@ -39,7 +39,8 @@ Sources:
 
 It indexes code in **15 languages with symbol extraction** (Python, JavaScript/TypeScript, Go, Java, Kotlin, Rust,
 C, C++, C#, Ruby, PHP, Swift, Scala), plus any other language tree-sitter has a grammar for, as plain chunks.
-History comes from git and GitHub. It runs on the Gemini free tier with local embeddings and one SQLite file.
+History comes from git and GitHub. It runs on the Gemini free tier with local embeddings, SQLite, and Qdrant as the
+vector database.
 
 On 37 held-out questions it scores **75% vs 56%** for single-shot RAG over the same index (+19 points, 95% CI
 +3 to +35), at about 5× the LLM calls. A second, independent judge model changes both numbers by about 4 points
@@ -54,7 +55,8 @@ but not the gap. [Results and failure analysis](#end-to-end-results).
                 │           ──▶ git log: one chunk per commit message                                             │
                 │ GraphQL  ──▶ issues, PRs, discussions (+30 comments), release notes created before the commit,     │
                 │              also split into comment-sized passages for keyword search                           │
-                │ bge-small (local ONNX) embeddings ──▶ SQLite: chunks · FTS5 (BM25) · vectors · symbols · calls     │
+                │ bge-small (local ONNX) embeddings ──▶ SQLite: chunks · FTS5 (BM25) · embeddings · symbols · calls  │
+                │                                    ──▶ Qdrant: one HNSW collection per repo (rebuilt from SQLite)  │
                 └────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
  question ──▶ Agent (pydantic-ai, Gemini) ── bounded tool loop ─────────────────────────────────────────────┐
@@ -81,7 +83,16 @@ passages. These are keyword-indexed only, so they don't slow embedding, and they
 that contains the answer instead of the start of a 40-comment thread.
 
 **Retrieval** (`retrieval.py`) runs BM25 (SQLite FTS5, with `camelCase`/`snake_case` identifiers split into words)
-and exact cosine search, and fuses the two rankings with reciprocal rank fusion.
+and vector search, and fuses the two rankings with reciprocal rank fusion.
+
+**Vector search** (`vectors.py`) has one interface with two backends. With `REPO_ASSIST_QDRANT_URL` set (as in
+docker-compose) it uses **Qdrant**: one collection per repository with an HNSW index and a `kind` payload index, so
+"code only" or "history only" is filtered inside the database. Without it, it uses exact cosine search in-process
+with numpy, so local development needs no extra service. SQLite stays the source of record for embeddings, and a
+Qdrant collection is a derived index. Re-indexing is blue/green: a new collection is built next to the old one,
+and the repository's alias is switched to it in one atomic step, only after SQLite has committed. Searches never
+see a half-built index, a failed ingest leaves the previous one in place, and a missing collection is rebuilt from
+SQLite on first use.
 
 **The agent** (`agent.py`, `tools.py`) is one pydantic-ai agent with a hard step budget. For "why" questions it has
 a path most retrieval systems lack. `code_history` runs `git log -L` on specific lines, so the agent can go from
@@ -112,7 +123,7 @@ justify itself.
 | **One agent, not several** | An earlier version had a planner, three "specialist" agents and a verifier. Its own evaluation scored it *below* the simpler pipeline (35.7% vs 41.1%), and most specialists wrapped the same functions. One agent with good tools is easier to reason about and measure. | No parallel specialists. |
 | **Grounding checks in code** | Prompts ask; validators enforce. Citations and rationale quotes are checked against what tools actually returned, so the model can't cite something it never read or put words in a maintainer's mouth. | Extra model retries when the model gets it wrong; "why" answers need a quotable source. |
 | **History as first-class evidence** | "Why" questions are where code search alone fails: the reasons live in PRs, issues, release notes and commit messages. Comment-level passages and `code_history` make them reachable. | Needs a GitHub token; large repos take minutes to fetch. |
-| **SQLite for everything** | A repository is a few thousand chunks, so exact cosine search over an in-memory numpy matrix takes about a millisecond, and FTS5 gives BM25 in the same file. One file, transactional re-indexing, no extra service. | Exact search won't scale to millions of chunks; then swap an ANN index (FAISS/HNSW, pgvector, Qdrant) in behind `dense_search`. |
+| **Qdrant for vectors, SQLite as the source of record** | Qdrant gives approximate (HNSW) search that stays fast as the index grows, filtering by payload, and one index shared by the API, CLI and eval processes. Embeddings also stay in SQLite next to the chunks and BM25 index, so a collection can always be rebuilt and a re-index is one SQLite transaction plus an atomic alias switch. [Benchmarked](#vector-search-exact-vs-hnsw): at one repository's size, exact in-process search is faster (2 ms vs 12 ms); HNSW pulls ahead past about 100k vectors. | Two stores to keep consistent (handled by the blue/green rebuild); an extra service in deployment, which is why exact search remains the zero-setup default. |
 | **Local embeddings (bge-small, ONNX)** | Gemini's free tier counts each embedded text as a request (100/min), which makes indexing thousands of chunks take hours. Larger local models were 3–10× slower on the CPU this was built on. Identifiers are handled by BM25 and grep. | 512-token context; weaker on code than code-specific models. |
 | **Name-matched call sites, verified by reading** | A per-language type-resolved call graph is a large project of its own. Name matching plus `read_file` gets the agent to the right code. | Common names give false positives (the tool says so). |
 | **pydantic-ai, model as a config string** | Typed outputs, output validators with retry, usage limits, and testable with scripted models. Changing provider is one environment variable. | Defaults tuned for Gemini 3.5 Flash-Lite. |
@@ -174,6 +185,38 @@ questions were mined from the maintainers' sentences and reuse their exact wordi
 favours BM25. The one test question that wasn't mined ("Why is the router called chi?") is missed by all three
 retrievers when the raw question is the query. The agent still found it, because it writes its own search queries.
 The retriever was not retuned after seeing this, because that would be tuning on the test set.
+
+### Vector search: exact vs HNSW
+
+`evals/vector_bench.py` (no LLM) compares exact search with Qdrant's HNSW index. Recall@10 is the share of the true
+top 10 (from exact search) that a method returns. Qdrant ran in Docker on the same laptop, so its latency includes
+an HTTP round trip of about 10 ms.
+
+On the **13,251 real chunk embeddings** from the three indexed repositories, with 393 queries (the 93 evaluation
+questions plus 300 chunks held out of the index):
+
+| Method | Recall@10 | Latency p50 |
+|---|---|---|
+| Exact, in-process (numpy) | 1.000 | **1.9 ms** |
+| Qdrant, exact | 0.993 | 14.2 ms |
+| Qdrant, HNSW (ef=16) | 0.940 | 10.6 ms |
+| Qdrant, HNSW (ef=64) | 0.986 | 12.0 ms |
+| Qdrant, HNSW (ef=128) | 0.990 | 11.2 ms |
+
+At **larger sizes** (random vectors of the same dimension, latency only, because recall on random data says
+nothing about real embeddings):
+
+| Vectors | Exact, in-process | Qdrant HNSW (ef=64) | HNSW build time |
+|---|---|---|---|
+| 10,000 | **1.4 ms** | 12.3 ms | 20s |
+| 50,000 | **6.4 ms** | 12.0 ms | 136s |
+| 200,000 | 28.5 ms | **13.7 ms** | 692s |
+
+Exact search grows linearly with the index and HNSW stays flat, so they cross at roughly 100k vectors. One
+repository is far below that, and either backend is negligible next to a multi-second LLM call. Qdrant earns its
+place as the index grows (many repositories, monorepos) and as a shared service. HNSW's small recall loss can be
+traded for speed with `ef`. The few "misses" of Qdrant's exact mode are ties: identical texts, such as a PR and
+its merge commit, ordered differently. The retrieval ablation above gives the same recall@5 and @10 on both backends.
 
 ### End-to-end results
 
@@ -240,7 +283,7 @@ cp .env.example .env        # add GEMINI_API_KEY and GITHUB_TOKEN
 ### Docker
 
 ```bash
-docker compose up --build   # http://localhost:8000
+docker compose up --build   # app on http://localhost:8000, plus Qdrant for vector search
 # index a repo from the UI, or:
 docker compose exec app repo-assist ingest go-chi/chi
 ```
@@ -280,6 +323,8 @@ repo-assist ingest go-chi/chi        --ref v5.5.0
 python evals/retrieval_eval.py --split test      # retrieval ablation, no LLM
 python evals/run_eval.py --split test             # agent vs baseline; resumable, cached
 python evals/judge_audit.py --split test          # second-judge agreement check
+docker run -d -p 6333:6333 qdrant/qdrant:v1.19.2
+python evals/vector_bench.py                      # exact vs HNSW, no LLM
 pytest                                            # offline unit/integration tests
 ```
 
@@ -291,7 +336,8 @@ judge), so the test split fits in one day. Runs stop cleanly at the daily quota 
 ```text
 src/repo_assist/
   ingest/        clone, tree-sitter parsing (15 languages), docs, git + GitHub history, passages, pipeline
-  store.py       SQLite schema (chunks, passages, FTS5, vectors, symbols, call sites)
+  store.py       SQLite schema (chunks, passages, FTS5, embeddings, symbols, call sites)
+  vectors.py     vector search: Qdrant (HNSW, blue/green rebuilds) or exact in-process
   embeddings.py  local ONNX embeddings with a content-hash cache
   retrieval.py   BM25, dense, RRF fusion, passage-aware history search, symbols, grep, file reads
   grounding.py   answer schema; citation and rationale-quote checks
@@ -302,7 +348,7 @@ src/repo_assist/
   cli.py         repo-assist ingest | ask | repos | serve
 frontend/        React + Vite UI
 evals/           questions (dev/test), runner, report, judge + judge audit, retrieval ablation,
-                 statistics, LLM cache, rationale miner, results
+                 vector benchmark, statistics, LLM cache, rationale miner, results
 tests/           offline tests (fixture git repos, hash embedder, scripted models)
 docs/demo.gif    the UI answering a question
 ```

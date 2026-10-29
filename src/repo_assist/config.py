@@ -20,6 +20,7 @@ class Settings:
     max_threads: int
     max_commits: int
     model_cache_dir: Path
+    qdrant_url: str | None
 
     @property
     def db_path(self) -> Path:
@@ -45,4 +46,6 @@ def get_settings() -> Settings:
         max_threads=int(os.environ.get("REPO_ASSIST_MAX_THREADS", "8000")),
         max_commits=int(os.environ.get("REPO_ASSIST_MAX_COMMITS", "5000")),
         model_cache_dir=Path(os.environ.get("REPO_ASSIST_MODEL_DIR", data_dir / "models")),
+        # Vector search backend: Qdrant at this URL (e.g. http://localhost:6333), else exact in-process search.
+        qdrant_url=os.environ.get("REPO_ASSIST_QDRANT_URL") or None,
     )

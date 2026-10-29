@@ -7,7 +7,6 @@ actually returned during the run.
 
 import re
 import sqlite3
-import threading
 from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path
@@ -15,7 +14,7 @@ from typing import Literal
 
 import numpy as np
 
-from repo_assist import store
+from repo_assist import store, vectors
 from repo_assist.config import get_settings
 from repo_assist.embeddings import Embedder, get_embedder
 
@@ -76,51 +75,13 @@ def bm25_search(conn: sqlite3.Connection, repo_id: str, query: str, kinds: tuple
 
 
 # ---------------------------------------------------------------------------
-# Dense (exact cosine over an in-memory matrix per repo)
+# Dense (vectors.py: Qdrant HNSW, or exact cosine in-process)
 # ---------------------------------------------------------------------------
-
-@dataclass
-class _VectorIndex:
-    version: tuple
-    ids: np.ndarray
-    kinds: np.ndarray
-    matrix: np.ndarray
-
-
-_vector_cache: dict[str, _VectorIndex] = {}
-_vector_lock = threading.Lock()
-
-
-def _vector_index(conn: sqlite3.Connection, repo_id: str) -> _VectorIndex:
-    version = tuple(conn.execute(
-        "SELECT count(*), coalesce(max(id), 0) FROM chunks WHERE repo_id = ?", (repo_id,)
-    ).fetchone())
-    with _vector_lock:
-        cached = _vector_cache.get(repo_id)
-        if cached is not None and cached.version == version:
-            return cached
-        rows = conn.execute(
-            "SELECT id, kind, embedding FROM chunks WHERE repo_id = ? AND embedding IS NOT NULL", (repo_id,)
-        ).fetchall()
-        if rows:
-            matrix = np.stack([np.frombuffer(r["embedding"], dtype=np.float32) for r in rows])
-        else:
-            matrix = np.zeros((0, 1), dtype=np.float32)
-        index = _VectorIndex(version, np.array([r["id"] for r in rows]), np.array([r["kind"] for r in rows]), matrix)
-        _vector_cache[repo_id] = index
-        return index
-
 
 def dense_search(conn: sqlite3.Connection, repo_id: str, query: str, kinds: tuple[str, ...],
                  embedder: Embedder | None = None, limit: int = CANDIDATES) -> list[tuple[int, float]]:
-    index = _vector_index(conn, repo_id)
-    if len(index.ids) == 0:
-        return []
     query_vector = (embedder or get_embedder()).embed_query(query)
-    scores = index.matrix @ query_vector
-    scores[~np.isin(index.kinds, kinds)] = -np.inf
-    top = np.argsort(-scores)[:limit]
-    return [(int(index.ids[i]), float(scores[i])) for i in top if np.isfinite(scores[i])]
+    return vectors.get_index().search(conn, repo_id, np.asarray(query_vector, dtype=np.float32), kinds, limit)
 
 
 # ---------------------------------------------------------------------------

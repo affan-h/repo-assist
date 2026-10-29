@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from repo_assist import store
+from repo_assist import store, vectors
 from repo_assist.config import get_settings
 from repo_assist.embeddings import Embedder, embed_with_cache, get_embedder
 from repo_assist.ingest import code, docs, git, github
@@ -53,6 +53,7 @@ def ingest(repo_id: str, ref: str | None = None, *, include_history: bool = True
         store.update_repo(conn, repo_id, status="ingesting", stage=message)
         conn.commit()
 
+    vector_index, prepared = vectors.get_index(), None
     try:
         repo = store.get_repo(conn, repo_id)
         if repo is None:
@@ -102,7 +103,7 @@ def ingest(repo_id: str, ref: str | None = None, *, include_history: bool = True
 
         embedder = embedder or get_embedder()
         stage(f"Embedding {len(chunks)} chunks")
-        vectors = list(embed_with_cache(
+        chunk_vectors = list(embed_with_cache(
             conn, embedder, [c.embed_text or c.text for c in chunks],
             progress=lambda done, total: stage(f"Embedding chunks ({done}/{total} new)"),
         ))
@@ -110,7 +111,7 @@ def ingest(repo_id: str, ref: str | None = None, *, include_history: bool = True
         # Comment-level passages of long threads: keyword-searchable, not embedded.
         passages = [p for c in chunks for p in github.split_passages(c)]
         chunks += passages
-        vectors += [None] * len(passages)
+        chunk_vectors += [None] * len(passages)
 
         stage("Writing index")
         stats = dict(Counter(c.kind for c in chunks))
@@ -118,15 +119,21 @@ def ingest(repo_id: str, ref: str | None = None, *, include_history: bool = True
         stats["ingest_seconds"] = round(time.monotonic() - started)
         if warnings:
             stats["warnings"] = warnings
-        with conn:  # single transaction: swap old index for new
+        # Single SQLite transaction swaps the old index for the new one. The vector index is built
+        # from inside it and switched over only once SQLite has committed (blue/green).
+        with conn:
             store.clear_repo_index(conn, repo_id)
-            store.insert_chunks(conn, repo_id, chunks, vectors)
+            store.insert_chunks(conn, repo_id, chunks, chunk_vectors)
             store.insert_symbols(conn, repo_id, symbols, calls)
+            prepared = vector_index.prepare(conn, repo_id)
             store.update_repo(conn, repo_id, status="ready", stage="Ready", error=None, stats=stats)
+        vector_index.activate(repo_id, prepared)
+        prepared = None
         log.info("[%s] ready: %s", repo_id, stats)
         return stats
     except Exception as exc:
         conn.rollback()
+        vector_index.discard(prepared)
         store.update_repo(conn, repo_id, status="failed", stage="Failed", error=f"{type(exc).__name__}: {exc}")
         conn.commit()
         raise

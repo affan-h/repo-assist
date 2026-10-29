@@ -17,15 +17,17 @@ def test_reciprocal_rank_fusion_rewards_agreement():
     assert fused[1] == pytest.approx(1 / 61 + 1 / 62)
 
 
+@pytest.mark.parametrize("backend", ["exact", "qdrant"])
 @pytest.mark.parametrize("mode", ["bm25", "dense", "hybrid"])
-def test_search_finds_method_by_description(ingested_repo, mode):
+def test_search_finds_method_by_description(ingested_repo, mode, backend):
     hits = retrieval.search(ingested_repo, "transport for url", mode=mode, embedder=HashEmbedder())
     assert hits, mode
     assert hits[0].symbol == "Client._transport_for_url"
     assert hits[0].ref == f"pkg/client.py:{hits[0].start_line}-{hits[0].end_line}"
 
 
-def test_search_respects_kinds(ingested_repo):
+@pytest.mark.parametrize("backend", ["exact", "qdrant"])
+def test_search_respects_kinds(ingested_repo, backend):
     history = retrieval.search(ingested_repo, "default timeout", kinds=retrieval.HISTORY_KINDS,
                                embedder=HashEmbedder())
     assert [h.kind for h in history] == ["commit"]
