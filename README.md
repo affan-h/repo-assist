@@ -5,6 +5,8 @@ or *why* it was designed that way. Every claim in the answer cites the exact lin
 discussions or release notes it came from, and reasons are quoted verbatim from the maintainers. If the
 evidence isn't there, it says so.
 
+![repo-assist answering a question about go-chi/chi: live tool calls, a cited answer, a verified quote and its sources](docs/demo.gif)
+
 ```text
 $ repo-assist ask httpx "Why was sync support dropped in httpx 0.8?"
   -> search_history(query='sync support httpx 0.8')
@@ -295,12 +297,14 @@ src/repo_assist/
   grounding.py   answer schema; citation and rationale-quote checks
   tools.py       evidence ledger and agent tools
   agent.py       prompts, the agent and the evaluation baseline, run loop
+  retry.py       retries rate-limited model calls after the delay the provider asks for
   api.py         FastAPI (JSON + SSE) and static UI
   cli.py         repo-assist ingest | ask | repos | serve
 frontend/        React + Vite UI
 evals/           questions (dev/test), runner, report, judge + judge audit, retrieval ablation,
                  statistics, LLM cache, rationale miner, results
 tests/           offline tests (fixture git repos, hash embedder, scripted models)
+docs/demo.gif    the UI answering a question
 ```
 
 ## Limitations

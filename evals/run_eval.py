@@ -14,7 +14,6 @@ stopped without paying again for finished work.
 import argparse
 import asyncio
 import json
-import re
 import sys
 import time
 from itertools import zip_longest
@@ -30,6 +29,7 @@ from evals.llm_cache import CachedModel  # noqa: E402
 from evals.report import write_report  # noqa: E402
 from repo_assist import agent  # noqa: E402
 from repo_assist.config import get_settings  # noqa: E402
+from repo_assist.retry import is_daily_quota, retry_delay  # noqa: E402
 
 SYSTEMS = ("agent", "baseline")
 MAX_ATTEMPTS = 8
@@ -50,13 +50,11 @@ async def with_retry(make_call):
             print(f"    [{type(exc).__name__}] retrying in {10 * attempt}s", flush=True)
             await asyncio.sleep(10 * attempt)
         except ModelHTTPError as exc:
-            body = str(exc.body or exc)
-            if exc.status_code == 429 and "PerDay" in body:
-                raise QuotaExhausted(body[:300]) from exc
-            if exc.status_code not in (429, 500, 502, 503, 504) or attempt == MAX_ATTEMPTS:
+            if is_daily_quota(exc):
+                raise QuotaExhausted(str(exc.body or exc)[:300]) from exc
+            delay = retry_delay(exc, attempt)
+            if delay is None or attempt == MAX_ATTEMPTS:
                 raise
-            match = re.search(r"retry in ([\d.]+)s", body) or re.search(r"'retryDelay': '(\d+)s'", body)
-            delay = float(match.group(1)) + 1 if match else min(15 * attempt, 90)
             print(f"    [{exc.status_code}] backing off {delay:.0f}s (attempt {attempt})", flush=True)
             await asyncio.sleep(delay)
 

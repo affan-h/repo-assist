@@ -23,6 +23,7 @@ from pydantic_ai.usage import UsageLimits
 from repo_assist import retrieval, store
 from repo_assist.config import get_settings
 from repo_assist.grounding import Answer, Evidence, resolve_citation, validate_answer
+from repo_assist.retry import RetryingModel
 from repo_assist.tools import TOOLS, Deps, ToolCall, format_code_hit, format_history_hit, hit_evidence
 
 Mode = Literal["agent", "baseline"]
@@ -236,7 +237,7 @@ async def answer(repo_id: str, question: str, mode: Mode = "agent", model: "str 
     else:
         prompt = question
 
-    model = model or get_settings().agent_model
+    model = RetryingModel(model or get_settings().agent_model)  # free tier: 15 requests/minute
     output, error, run, usage = None, None, None, None
     try:
         async with AGENTS[mode].iter(prompt, model=model, deps=deps, usage_limits=AGENT_LIMITS) as run:

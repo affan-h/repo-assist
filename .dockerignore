@@ -1,12 +1,10 @@
 .git
 .env
 .venv
-venv
 data
-legacy-data
-repos
 evals
 tests
+docs
 **/__pycache__
 **/*.egg-info
 frontend/node_modules
